@@ -44,7 +44,7 @@ def main(args):
                 df_out.append(
                     pd.DataFrame(
                         {
-                            "file": [file_name], 
+                            "file": [file_name],
                             "label": [class_label]
                         }
                     )

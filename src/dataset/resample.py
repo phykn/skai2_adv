@@ -11,7 +11,7 @@ def resample_id(
     for class_id in [0, 2, 3, 4, 5, 6]:
         df_class = df.loc[df["class_id"]==class_id]
         images = list(df_class["img_id"].unique())
-        
+
         image_list.append(images)
         image_nums.append(len(images))
 

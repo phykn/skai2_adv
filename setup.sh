@@ -27,3 +27,11 @@ python src/yolo_make_label.py \
 --src_img_folder "/home/work/data_prepared/image" \
 --file_column "img_name" \
 --single_object
+
+# crop image for classification
+python src/crop_image.py \
+--src_csv_path "/home/work/data/train.csv" \
+--src_img_folder "/home/work/data/train" \
+--dst_csv_path "/home/work/data_prepared/train_crop.csv" \
+--dst_img_folder "/home/work/data_prepared/image_crop" \
+--scale 1.2

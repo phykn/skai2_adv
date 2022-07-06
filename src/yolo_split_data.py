@@ -66,7 +66,7 @@ def main(args):
         df_valid = df.query(f"img_id=={list(img_ids[valid_index])}")
 
         train_image_paths = [os.path.join(args.src_img_folder, file) for file in df_train["img_name"].unique()]
-        valid_image_paths = [os.path.join(args.src_img_folder, file) for file in df_valid["img_name"].unique()]
+        valid_image_paths = [os.path.join(args.src_img_folder, file) for file in df_valid["img_name"].unique() if "_origin" in file]
 
         # write
         write_data(train_txt_path, train_image_paths)

@@ -13,3 +13,4 @@ thop
 pycocotools
 ensemble-boxes
 albumentations
+timm

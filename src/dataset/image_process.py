@@ -18,7 +18,7 @@ def delete_objects(
     for bbox in bboxes:
         x1, y1, x2, y2 = norm_xyxy_to_pixel_xyxy(bbox, image_width, image_height)
         image[y1:y2, x1:x2] = mean
-        
+
     return image
 
 
@@ -31,22 +31,22 @@ def extract_objects(
     assert scale >= 1.0, "scale must be larger than 0" 
     # image: HxWxC
     # bbox: normalized xyxy
-    
+
     image_height, image_width, _ = image.shape
     for bbox, class_label in zip(bboxes, class_labels):
         x1, y1, x2, y2 = norm_xyxy_to_pixel_xyxy(bbox, image_width, image_height)
         w = int(np.ceil((x2-x1)*(scale-1)))
         h = int(np.ceil((y2-y1)*(scale-1)))
-        
+
         x1 = np.maximum(0, x1-w)
         y1 = np.maximum(0, y1-h)
         x2 = np.minimum(x2+w, image_width)
-        y2 = np.minimum(y2+h, image_height)        
+        y2 = np.minimum(y2+h, image_height)
         crop = image[y1:y2, x1:x2]
-        
+
         yield crop, class_label
-        
-        
+
+
 def transform_bbox(
     transform: A.Compose,
     image: np.ndarray,
@@ -72,10 +72,10 @@ def transform_bbox(
         else:
             output["bboxes"] = np.array(output["bboxes"])
             output["class_labels"] = np.array(output["class_labels"])
-            
+
         return output
 
-    
+
 def transform_s():
     return A.Compose(
         [A.RandomResizedCrop(
