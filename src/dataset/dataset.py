@@ -1,6 +1,7 @@
 import random
+import numpy as np
 import albumentations as A
-from typing import List
+from typing import List, Tuple
 from .open_image import open_image
 from ..utils.misc import get_unique_indices
 
@@ -11,15 +12,12 @@ class CLF_Dataset:
         files: List[str],
         labels: List[int],
         img_size: int=224,
-        random_select: bool=False,
-        random_state: int=42
+        random_select: bool=False
     ) -> None:
         self.files = files
         self.labels = labels
         self.random_select = random_select
-        self.random_state = random_state
 
-        random.seed(random_state)
         unique, self.indices = get_unique_indices(labels)
         self.num_class = len(unique)
 
@@ -92,14 +90,9 @@ class CLF_Dataset:
 
         file = self.files[idx]
         label = self.labels[idx]
-        
-        image = open_image(file)     
-        
-        target_image = self.b_transform(image=image)["image"]
-        input_image = self.n_transform(image=target_image)["image"]
-        
-        target_image = self.normalize(image=target_image)["image"].transpose(2, 0, 1)
-        input_image = self.normalize(image=input_image)["image"].transpose(2, 0, 1)
+
+        image = open_image(file)
+        input_image, target_image = self.transform_image(image)
 
         return dict(
             input_image=input_image,
@@ -110,6 +103,66 @@ class CLF_Dataset:
     def _get_random_idx(
         self
     ) -> int:
-        return random.choice(
-            self.indices[random.randint(0, self.num_class-1)]
+        l = np.random.choice(range(0, self.num_class), size=1, replace=False)[0]
+        return random.choice(self.indices[l])
+
+    def transform_image(
+        self,
+        image: np.ndarray
+    ) -> Tuple[np.ndarray]:
+        target_image = self.b_transform(image=image)["image"]
+        input_image = self.n_transform(image=target_image)["image"]
+
+        target_image = self.normalize(image=target_image)["image"].transpose(2, 0, 1)
+        input_image = self.normalize(image=input_image)["image"].transpose(2, 0, 1)
+        
+        return input_image, target_image
+
+    
+    
+class Twin_CLF_Dataset(CLF_Dataset):
+    def __init__(
+        self,
+        files: List[str],
+        labels: List[int],
+        img_size: int=224
+    ) -> None:
+        super().__init__(files, labels, img_size)
+        
+    def _get_random_twin_idx(
+        self
+    ) -> Tuple[int]:
+        same_label = random.choice([False, True])
+        if same_label:
+            l = np.random.choice(range(0, self.num_class), size=1, replace=False)[0]
+            return random.choice(self.indices[l]), random.choice(self.indices[l])
+        else:
+            l0, l1 = np.random.choice(range(0, self.num_class), size=2, replace=False)
+            return random.choice(self.indices[l0]), random.choice(self.indices[l1])
+        
+    def __getitem__(
+        self,
+        idx: int
+    ) -> dict:
+        idx_0, idx_1 = self._get_random_twin_idx()
+        
+        file_0 = self.files[idx_0]
+        label_0 = self.labels[idx_0]
+        input_image_0, target_image_0 = self.transform_image(open_image(file_0))
+        
+        file_1 = self.files[idx_1]
+        label_1 = self.labels[idx_1]
+        input_image_1, target_image_1 = self.transform_image(open_image(file_1))
+
+        return dict(
+            data_0=dict(
+                input_image=input_image_0,
+                target_image=target_image_0,
+                label=label_0
+            ),
+            data_1=dict(
+                input_image=input_image_1,
+                target_image=target_image_1,
+                label=label_1
+            )
         )

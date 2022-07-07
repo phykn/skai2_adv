@@ -58,7 +58,7 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser("Crop image for classification", parents=[get_args_parser()])
     args = parser.parse_args()
-    
+
     # make dir
     os.makedirs(args.dst_img_folder, exist_ok=True)
 
