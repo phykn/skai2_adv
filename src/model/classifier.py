@@ -94,7 +94,7 @@ class Classifier(nn.Module):
         return dict(
             clf_loss=ce_loss,
             img_loss=l1_loss,
-            loss=ce_loss+l1_loss,
+            loss=(ce_loss+l1_loss)/2,
             embed=out["embed"],
         )
 
@@ -171,5 +171,5 @@ class Twin_Classifier(nn.Module):
             clf_loss_1=twin_1["clf_loss"],
             img_loss_1=twin_1["img_loss"],
             pair_loss=pair_loss,
-            loss=twin_0["loss"]+twin_1["loss"]+pair_loss
+            loss=(twin_0["loss"]+twin_1["loss"]+pair_loss)/3
         )
