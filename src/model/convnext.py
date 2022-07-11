@@ -104,30 +104,24 @@ class ConvNeXt(nn.Module):
             trunc_normal_(m.weight, std=.02)
             nn.init.constant_(m.bias, 0)
 
-#     def forward_features(self, x):
-#         for i in range(4):
-#             x = self.downsample_layers[i](x)
-#             x = self.stages[i](x)
-#         return self.norm(x.mean([-2, -1])) # global average pooling, (N, C, H, W) -> (N, C)
+    def forward_features(self, x):
+        for i in range(4):
+            x = self.downsample_layers[i](x)
+            x = self.stages[i](x)
+        return self.norm(x.mean([-2, -1])) # global average pooling, (N, C, H, W) -> (N, C)
 
 #     def forward(self, x):
 #         x = self.forward_features(x)
 #         x = self.head(x)
 #         return x
     
-    def forward_features(self, x):
-        out = []
+    def forward(self, x):
+        xs = []
         for i in range(4):
             x = self.downsample_layers[i](x)
             x = self.stages[i](x)
-            out.append(x)
-        return out
-
-    def forward(self, x):
-        xs = self.forward_features(x)
-        embed = self.norm(xs[-1].mean([-2, -1]))
-        y = self.head(embed)
-        return dict(xs=xs, y=y, embed=embed)
+            xs.append(x)
+        return xs
 
 class LayerNorm(nn.Module):
     r""" LayerNorm that supports two data formats: channels_last (default) or channels_first. 

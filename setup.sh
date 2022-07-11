@@ -19,7 +19,7 @@ python src/data_prepare.py \
 --src_img_folder "/home/work/data/train" \
 --dst_csv_path "/home/work/data_prepared/train.csv" \
 --dst_img_folder "/home/work/data_prepared/image" \
---repeat_l 2 --repeat_m 4 --repeat_s 8
+--img_size 1280 --repeat_l 2 --repeat_m 4 --repeat_s 8
 
 # make label for yolo
 python src/yolo_make_label.py \
