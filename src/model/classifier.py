@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 from typing import Dict
@@ -12,7 +13,7 @@ class Classifier(nn.Module):
         num_class: int=5,
         pretrained: bool=True,
         drop_path_rate: float=0.1,
-        num_encode: int=3,
+        num_encode_layer: int=3,
         hid_dim: int=256,
         num_head: int=8,
         dropout: float=0.1,
@@ -28,12 +29,10 @@ class Classifier(nn.Module):
         
         self.cng_kernel = ChangeKernel(self.kernels[0], hid_dim)
         self.pos_encode = PositionEmbeddingSine(num_pos_feats=hid_dim//2, normalize=True)
-        self.att_encode = []
-        for _ in range(num_encode):
-            self.att_encode.append(
-                AttentionEncodeLayer(hid_dim, num_head, hid_dim*2, dropout=dropout)
-            )
-        
+        self.att_encode = nn.Sequential(
+            *[AttentionEncodeLayer(d_model=hid_dim, n_head=num_head, d_ff=hid_dim*4, dropout=dropout) for _ in range(num_encode_layer)]
+        )
+
         self.pooling = GlobalAveragePooling2D(hid_dim)
         self.head = nn.Linear(hid_dim, num_class)
 
@@ -61,7 +60,7 @@ class Classifier(nn.Module):
         # pooling
         embed = self.pooling(x)
         
-        # logih
+        # logit
         logit = self.head(embed)
         
         return dict(
@@ -90,12 +89,17 @@ class Classifier(nn.Module):
     ) -> Dict[str, torch.Tensor]:
         out = self(data["input_image"])
         ce_loss = self.ce_loss(out["logit"], data["label"])
-        l1_loss = self.l1_loss(out["image"], data["target_image"])
+        l1_loss = self.l1_loss(out["image"], data["target_image"])        
+        accuracy = np.mean(
+            torch.argmax(out["logit"], axis=1).detach().cpu().numpy()==data["label"].cpu().numpy()
+        )
+        
         return dict(
             clf_loss=ce_loss,
             img_loss=l1_loss,
             loss=(ce_loss+l1_loss)/2,
             embed=out["embed"],
+            accuracy=torch.tensor(accuracy)
         )
 
 
@@ -105,7 +109,7 @@ class Twin_Classifier(nn.Module):
         num_class: int=5,
         pretrained: bool=True,
         drop_path_rate: float=0.1,
-        num_encode: int=3,
+        num_encode_layer: int=3,
         hid_dim: int=256,
         num_head: int=8,
         dropout: float=0.1,
@@ -116,7 +120,7 @@ class Twin_Classifier(nn.Module):
             num_class=num_class,
             pretrained=pretrained,
             drop_path_rate=drop_path_rate,
-            num_encode=num_encode,
+            num_encode_layer=num_encode_layer,
             hid_dim=hid_dim,
             num_head=num_head,
             dropout=dropout,
@@ -168,8 +172,10 @@ class Twin_Classifier(nn.Module):
         return dict(
             clf_loss_0=twin_0["clf_loss"],
             img_loss_0=twin_0["img_loss"],
+            accuracy_0=twin_0["accuracy"],
             clf_loss_1=twin_1["clf_loss"],
             img_loss_1=twin_1["img_loss"],
+            accuracy_1=twin_1["accuracy"],
             pair_loss=pair_loss,
             loss=(twin_0["loss"]+twin_1["loss"]+pair_loss)/3
         )

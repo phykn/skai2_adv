@@ -1,5 +1,8 @@
+import torch
 import pytorch_lightning as pl
-from ..utils.scheduler import CosineAnnealingWarmupRestarts
+from typing import List
+from torch.nn import Module
+from .scheduler import CosineAnnealingWarmupRestarts
 
 
 class Lightning(pl.LightningModule):
@@ -7,21 +10,25 @@ class Lightning(pl.LightningModule):
         self,
         model: Module,
         optimizer: str="sgd",
-        betas: List[float]=(0.5, 0.999),
-        weight_decay: float=0,
+        betas: List[float]=(0.9, 0.999),
+        weight_decay: float=1e-4,
+        momentum: float=0.9,
+        nesterov: bool=True,
         first_cycle_steps: int=100,
         cycle_mult: float=1.0,
         max_lr: float=0.01,
         min_lr: float=0.001,
         warmup_steps: int=5,
         gamma: float=1.0
-        
+
     ) -> None:
         super().__init__()
         self.model = model
         self.optimizer = optimizer
         self.betas = betas
         self.weight_decay = weight_decay     
+        self.momentum = momentum
+        self.nesterov = nesterov
         self.first_cycle_steps = first_cycle_steps
         self.cycle_mult = cycle_mult
         self.max_lr = max_lr
@@ -57,9 +64,9 @@ class Lightning(pl.LightningModule):
             optimizer = torch.optim.SGD(
                 self.parameters(),
                 lr=self.min_lr,
-                momentum=0.9,
+                momentum=self.momentum,
                 weight_decay=self.weight_decay,
-                nesterov=True
+                nesterov=self.nesterov
             )
         elif self.optimizer=="adamw":
             optimizer = torch.optim.AdamW(

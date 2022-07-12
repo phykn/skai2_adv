@@ -3,7 +3,7 @@ import numpy as np
 import albumentations as A
 from typing import List, Tuple
 from .open_image import open_image
-from ..utils.misc import get_unique_indices
+from .misc import get_unique_indices
 
 
 class CLF_Dataset:
