@@ -21,12 +21,12 @@ class Classifier(nn.Module):
     ) -> None:
         super().__init__()
         self.kernels = [768, 384, 192, 96, 64, 3]
-        
+
         self.convnext = convnext_tiny(pretrained=True, drop_path_rate=0.1)
         self.norm = ListLayerNorm(self.kernels[:4][::-1])
-        
+
         self.img_gen = ImageGenerator(self.kernels)
-        
+
         self.cng_kernel = ChangeKernel(self.kernels[0], hid_dim)
         self.pos_encode = PositionEmbeddingSine(num_pos_feats=hid_dim//2, normalize=True)
         self.att_encode = nn.Sequential(
@@ -46,23 +46,27 @@ class Classifier(nn.Module):
         # convnext
         xs = self.convnext(x)
         xs = self.norm(xs)
-        
+
+        # add noise
+        if self.training:
+            xs[-1] = xs[-1] + torch.randn_like(xs[-1])
+
         # generate image
         image = self.img_gen(xs)
-        
+
         # attention
         x = xs[-1]
         x = self.cng_kernel(x)
         p = self.pos_encode(x)
         for encoder in self.att_encode:
             x, score = encoder(x, p)
-            
+
         # pooling
         embed = self.pooling(x)
-        
+
         # logit
         logit = self.head(embed)
-        
+
         return dict(
             logit=logit,
             image=image,
@@ -89,11 +93,11 @@ class Classifier(nn.Module):
     ) -> Dict[str, torch.Tensor]:
         out = self(data["input_image"])
         ce_loss = self.ce_loss(out["logit"], data["label"])
-        l1_loss = self.l1_loss(out["image"], data["target_image"])        
+        l1_loss = self.l1_loss(out["image"], data["target_image"])
         accuracy = np.mean(
             torch.argmax(out["logit"], axis=1).detach().cpu().numpy()==data["label"].cpu().numpy()
         )
-        
+
         return dict(
             clf_loss=ce_loss,
             img_loss=l1_loss,
@@ -169,6 +173,9 @@ class Twin_Classifier(nn.Module):
 
         pair_loss = self.ce_loss(p_pair, t_pair)
 
+        pair_acc = np.mean(
+            torch.argmax(p_pair, axis=1).detach().cpu().numpy()==t_pair.cpu().numpy()
+        )
         return dict(
             clf_loss_0=twin_0["clf_loss"],
             img_loss_0=twin_0["img_loss"],
@@ -177,5 +184,6 @@ class Twin_Classifier(nn.Module):
             img_loss_1=twin_1["img_loss"],
             accuracy_1=twin_1["accuracy"],
             pair_loss=pair_loss,
+            pair_acc=torch.tensor(pair_acc),
             loss=(twin_0["loss"]+twin_1["loss"]+pair_loss)/3
         )

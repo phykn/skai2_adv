@@ -24,3 +24,13 @@ def norm_xyxy_to_yolo(
     width = np.clip(x2-x1, 0, 1)
     height = np.clip(y2-y1, 0, 1)
     return [x_center, y_center, width, height]
+
+def yolo_to_norm_xyxy(
+    bbox: List[float]
+) -> List[float]:
+    x_center, y_center, width, height = bbox
+    x1 = np.clip(x_center-width/2, 0, 1)
+    x2 = np.clip(x_center+width/2, 0, 1)
+    y1 = np.clip(y_center-height/2, 0, 1)
+    y2 = np.clip(y_center+height/2, 0, 1)
+    return [x1, y1, x2, y2]

@@ -16,6 +16,7 @@ def get_args_parser():
     parser.add_argument("--src_img_folder", default="data/train", type=str, help="source image folder")
     parser.add_argument("--dst_csv_path", default="data_prepared/train.csv", type=str, help="destination prepared data csv path")
     parser.add_argument("--dst_img_folder", default="data_prepared/image", type=str, help="destination prepared image folder")
+    parser.add_argument("--img_size", default=640, type=int, help="image size")
     parser.add_argument("--repeat_l", default=2, type=int, help="number of repeat for large transform")
     parser.add_argument("--repeat_m", default=4, type=int, help="number of repeat for medium transform")
     parser.add_argument("--repeat_s", default=8, type=int, help="number of repeat for small transform")
@@ -69,7 +70,7 @@ def main(args):
             # transform_l
             for i in range(repeat*args.repeat_l):
                 trans_file_name = f"{file}_trans_l_{i:03d}{ext}"
-                output = transform_bbox(transform_l(), image, bboxes, class_labels)
+                output = transform_bbox(transform_l(img_size=args.img_size), image, bboxes, class_labels)
                 Image.fromarray(output["image"]).save(
                     os.path.join(args.dst_img_folder, trans_file_name)
                 )
@@ -87,7 +88,7 @@ def main(args):
             # transform_l
             for i in range(repeat*args.repeat_l):
                 trans_file_name = f"{file}_trans_l_{i:03d}{ext}"
-                output = transform_bbox(transform_l(), image, bboxes, class_labels)
+                output = transform_bbox(transform_l(img_size=args.img_size), image, bboxes, class_labels)
                 Image.fromarray(output["image"]).save(
                     os.path.join(args.dst_img_folder, trans_file_name)
                 )
@@ -96,7 +97,7 @@ def main(args):
             # transform_m
             for i in range(repeat*args.repeat_m):
                 trans_file_name = f"{file}_trans_m_{i:03d}{ext}"
-                output = transform_bbox(transform_m(), image, bboxes, class_labels)
+                output = transform_bbox(transform_m(img_size=args.img_size), image, bboxes, class_labels)
                 Image.fromarray(output["image"]).save(
                     os.path.join(args.dst_img_folder, trans_file_name)
                 )
@@ -105,7 +106,7 @@ def main(args):
             # transform_s
             for i in range(repeat*args.repeat_s):
                 trans_file_name = f"{file}_trans_s_{i:03d}{ext}"
-                output = transform_bbox(transform_s(), image, bboxes, class_labels)
+                output = transform_bbox(transform_s(img_size=args.img_size), image, bboxes, class_labels)
                 Image.fromarray(output["image"]).save(
                     os.path.join(args.dst_img_folder, trans_file_name)
                 )

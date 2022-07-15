@@ -50,47 +50,50 @@ def write_data(
 def main(args):
     df = pd.read_csv(args.src_csv_path)
     img_ids = df["img_id"].unique()
+    
+    if args.n_splits == 0:
+        
+    else:
+        kf = KFold(
+            n_splits=args.n_splits,
+            random_state=args.seed,
+            shuffle=True
+        )
+        for i, (train_index, valid_index) in enumerate(kf.split(img_ids)):
+            # set txt path
+            train_txt_path = os.path.join(args.dst_txt_folder, f"train_{i:02d}.txt")
+            valid_txt_path = os.path.join(args.dst_txt_folder, f"valid_{i:02d}.txt")
 
-    kf = KFold(
-        n_splits=args.n_splits,
-        random_state=args.seed,
-        shuffle=True
-    )
-    for i, (train_index, valid_index) in enumerate(kf.split(img_ids)):
-        # set txt path
-        train_txt_path = os.path.join(args.dst_txt_folder, f"train_{i:02d}.txt")
-        valid_txt_path = os.path.join(args.dst_txt_folder, f"valid_{i:02d}.txt")
+            # select data
+            df_train = df.query(f"img_id=={list(img_ids[train_index])}")
+            df_valid = df.query(f"img_id=={list(img_ids[valid_index])}")
 
-        # select data
-        df_train = df.query(f"img_id=={list(img_ids[train_index])}")
-        df_valid = df.query(f"img_id=={list(img_ids[valid_index])}")
+            train_image_paths = [os.path.join(args.src_img_folder, file) for file in df_train["img_name"].unique()]
+            valid_image_paths = [os.path.join(args.src_img_folder, file) for file in df_valid["img_name"].unique() if "_origin" in file]
 
-        train_image_paths = [os.path.join(args.src_img_folder, file) for file in df_train["img_name"].unique()]
-        valid_image_paths = [os.path.join(args.src_img_folder, file) for file in df_valid["img_name"].unique() if "_origin" in file]
+            # write
+            write_data(train_txt_path, train_image_paths)
+            write_data(valid_txt_path, valid_image_paths)
 
-        # write
-        write_data(train_txt_path, train_image_paths)
-        write_data(valid_txt_path, valid_image_paths)
-
-        # save yaml file
-        if args.single_object:
-            save_yaml(
-                path=os.path.join(args.dst_txt_folder, f"dataset_{i:02d}.yaml"),
-                train=train_txt_path,
-                valid=valid_txt_path,
-                nc=1,
-                names=["bolt"],
-                verbose=True
-            )
-        else:
-            save_yaml(
-                path=os.path.join(args.dst_txt_folder, f"dataset_{i:02d}.yaml"),
-                train=train_txt_path,
-                valid=valid_txt_path,
-                nc=5,
-                names=["normal", "unscrewed_red", "rusty_yellow", "rusty_red", "unscrewed_yellow"],
-                verbose=True
-            )
+            # save yaml file
+            if args.single_object:
+                save_yaml(
+                    path=os.path.join(args.dst_txt_folder, f"dataset_{i:02d}.yaml"),
+                    train=train_txt_path,
+                    valid=valid_txt_path,
+                    nc=1,
+                    names=["bolt"],
+                    verbose=True
+                )
+            else:
+                save_yaml(
+                    path=os.path.join(args.dst_txt_folder, f"dataset_{i:02d}.yaml"),
+                    train=train_txt_path,
+                    valid=valid_txt_path,
+                    nc=5,
+                    names=["normal", "unscrewed_red", "rusty_yellow", "rusty_red", "unscrewed_yellow"],
+                    verbose=True
+                )
 
 
 if __name__ == "__main__":

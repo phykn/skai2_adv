@@ -76,11 +76,13 @@ def transform_bbox(
         return output
 
 
-def transform_s():
+def transform_s(
+    img_size: int=640
+) -> A.Compose:
     return A.Compose(
         [A.RandomResizedCrop(
-            height=640,
-            width=640,
+            height=img_size,
+            width=img_size,
             scale=(0.05, 0.2),
             ratio=(1.0, 1.0),
             always_apply=True
@@ -94,11 +96,13 @@ def transform_s():
     )
 
 
-def transform_m():
+def transform_m(
+    img_size: int=640
+) -> A.Compose:
     return A.Compose(
         [A.RandomResizedCrop(
-            height=640,
-            width=640,
+            height=img_size,
+            width=img_size,
             scale=(0.2, 0.4),
             ratio=(1.0, 1.0),
             always_apply=True
@@ -112,11 +116,13 @@ def transform_m():
     )
 
 
-def transform_l():
+def transform_l(
+    img_size: int=640
+) -> A.Compose:
     return A.Compose(
         [A.RandomResizedCrop(
-            height=640,
-            width=640,
+            height=img_size,
+            width=img_size,
             scale=(0.4, 0.8),
             ratio=(1.0, 1.0),
             always_apply=True

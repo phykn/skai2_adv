@@ -42,7 +42,7 @@ def get_args():
     parser.add_argument("--n_splits", default=10, type=int, help="number of folds")
     parser.add_argument("--fold", default=0, type=int, help="fold index")
     
-    parser.add_argument("--batch_size", default=16, type=int, help="batch size")
+    parser.add_argument("--batch_size", default=64, type=int, help="batch size")
     parser.add_argument("--num_workers", default=4, type=int, help="num workers for dataloader")
     parser.add_argument("--pin_memory", default=True, type=str2bool, help="pin memory")
     
@@ -90,47 +90,77 @@ def main(args):
     os.makedirs(dir_base, exist_ok=True)
     os.makedirs(dir_ckpt, exist_ok=True)
     os.makedirs(dir_weight, exist_ok=True)
-    
+
     # data
     df = pd.read_csv(args.src_csv_path)
     files = np.array([os.path.join(args.src_img_folder, file) for file in df["file"].values])
     labels = df["label"].values - 2
 
-    # split data
-    skf = StratifiedKFold(
-        n_splits=args.n_splits,
-        random_state=args.random_state,
-        shuffle=True
-    )
+    # split data    
+    if args.n_splits == 0:
+        train_loader = DataLoader(
+            Twin_CLF_Dataset(
+                files=files,
+                labels=labels,
+                img_size=args.img_size,
+                test=False
+            ),
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_memory,
+            shuffle=True
+        )
 
-    for i, (train_index, valid_index) in enumerate(skf.split(files, labels)):
-        if i == args.fold:
-            train_dataset = Twin_CLF_Dataset(
-                files=files[train_index],
-                labels=labels[train_index],
-                img_size=args.img_size
-            )
-            train_loader = DataLoader(
-                train_dataset,
-                batch_size=args.batch_size,
-                num_workers=args.num_workers,
-                pin_memory=args.pin_memory,
-                shuffle=False
-            )
+        np.random.seed(args.random_state)
+        valid_index = np.random.choice(range(len(files)), size=int(0.2*len(files)), replace=False)
 
-            valid_dataset = Twin_CLF_Dataset(
+        valid_loader = DataLoader(
+            Twin_CLF_Dataset(
                 files=files[valid_index],
                 labels=labels[valid_index],
-                img_size=args.img_size
-            )
-            valid_loader = DataLoader(
-                valid_dataset,
-                batch_size=args.batch_size,
-                num_workers=args.num_workers,
-                pin_memory=args.pin_memory,
-                shuffle=False
-            )
-            break
+                img_size=args.img_size,
+                test=True
+            ),
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory=args.pin_memory,
+            shuffle=False
+        )
+
+    else:
+        skf = StratifiedKFold(
+            n_splits=args.n_splits,
+            random_state=args.random_state,
+            shuffle=True
+        )
+
+        for i, (train_index, valid_index) in enumerate(skf.split(files, labels)):
+            if i == args.fold:
+                train_loader = DataLoader(
+                    Twin_CLF_Dataset(
+                        files=files[train_index],
+                        labels=labels[train_index],
+                        img_size=args.img_size,
+                        test=False
+                    ),
+                    batch_size=args.batch_size,
+                    num_workers=args.num_workers,
+                    pin_memory=args.pin_memory,
+                    shuffle=False
+                )
+                valid_loader = DataLoader(
+                    Twin_CLF_Dataset(
+                        files=files[valid_index],
+                        labels=labels[valid_index],
+                        img_size=args.img_size,
+                        test=True
+                    ),
+                    batch_size=args.batch_size,
+                    num_workers=args.num_workers,
+                    pin_memory=args.pin_memory,
+                    shuffle=False
+                )
+                break
 
     # checkpoint
     checkpoint = ModelCheckpoint(
@@ -175,8 +205,8 @@ def main(args):
         num_class=args.num_class,
         num_head=args.num_head,
         num_encode_layer=args.num_encode_layer,
-        hid_dim=args.hid_dim,        
-        drop_path_rate=args.drop_path_rate,        
+        hid_dim=args.hid_dim,
+        drop_path_rate=args.drop_path_rate,
         dropout=args.dropout,
         label_smoothing=args.label_smoothing
     )
@@ -188,7 +218,7 @@ def main(args):
         first_cycle_steps=args.epoch,
         warmup_steps=args.warmup_steps,
         max_lr=args.max_lr,
-        min_lr=args.min_lr,        
+        min_lr=args.min_lr,
         weight_decay=args.weight_decay
     )
 
@@ -212,7 +242,7 @@ def main(args):
         train_dataloaders=train_loader, 
         val_dataloaders=valid_loader
     )
-    
+
     # best model save
     best_model = Lightning.load_from_checkpoint(
         checkpoint_path=checkpoint.best_model_path,
@@ -233,6 +263,6 @@ def main(args):
         os.path.join(dir_weight, "last.pt")
     )
 
-    
+
 if __name__ == "__main__":
     main(get_args())

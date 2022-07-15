@@ -1,8 +1,9 @@
 # clear folder
 rm -rf /home/work/data
 rm -rf /home/work/data_prepared
-rm -rf /home/work/src/yolor-main
+# rm -rf /home/work/src/yolor-main
 rm -rf /home/work/src/yolov5-master
+rm -rf /home/work/pretrain
 
 # pip install
 pip install -r requirements.txt
@@ -10,7 +11,7 @@ pip install -r requirements.txt
 # unzip
 python src/utils/unzip.py -file "/home/work/sample-notebooks/train.zip" -dst "/home/work/data"
 python src/utils/unzip.py -file "/home/work/sample-notebooks/predict.zip" -dst "/home/work/data"
-python src/utils/unzip.py -file "/home/work/sample-notebooks/yolor-main.zip" -dst "/home/work/src"
+# python src/utils/unzip.py -file "/home/work/sample-notebooks/yolor-main.zip" -dst "/home/work/src"
 python src/utils/unzip.py -file "/home/work/sample-notebooks/yolov5-master.zip" -dst "/home/work/src"
 
 # data preparation
@@ -35,3 +36,7 @@ python src/crop_image.py \
 --dst_csv_path "/home/work/data_prepared/train_crop.csv" \
 --dst_img_folder "/home/work/data_prepared/image_crop" \
 --scale 1.2
+
+# download pretrain weight
+python src/download_weight.py \
+--dst_folder "/home/work/pretrain"

@@ -73,13 +73,13 @@ class ImageGenerator(nn.Module):
     ) -> None:
         super().__init__()
         self.upscale_1 = UpScaleBlock(channels[0], channels[1], norm=True)
-        self.act_1 = nn.SiLU()
+        self.act_1 = nn.GELU()
         self.upscale_2 = UpScaleBlock(channels[1], channels[2], norm=True)
-        self.act_2 = nn.SiLU()
+        self.act_2 = nn.GELU()
         self.upscale_3 = UpScaleBlock(channels[2], channels[3], norm=True)
-        self.act_3 = nn.SiLU()
+        self.act_3 = nn.GELU()
         self.upscale_4 = UpScaleBlock(channels[3], channels[4], norm=True)
-        self.act_4 = nn.SiLU()
+        self.act_4 = nn.GELU()
         self.upscale_5 = UpScaleBlock(channels[4], channels[5], norm=False)
         self.apply(self._init_weights)
 
@@ -203,8 +203,8 @@ class AttentionEncodeLayer(nn.Module):
         x: torch.Tensor
     ) -> torch.Tensor:
         n, b, c = x.shape
-        w = h = math.sqrt(n)
-        return x.permute(1, 2, 0).view(b, c, int(w), int(h))
+        w = h = int(math.sqrt(n))
+        return x.permute(1, 2, 0).view(b, c, w, h)
     
     def _init_weights(self, m):
         if isinstance(m, (nn.Linear, nn.Conv2d)):
