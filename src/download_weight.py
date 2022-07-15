@@ -3,10 +3,10 @@ import argparse
 import requests
 
 
-def get_args_parser():
+def get_args():
     parser = argparse.ArgumentParser("Download Pretrain Weights", add_help=False)
     parser.add_argument("--dst_folder", default="pretrain", type=str, help="destination pretrain weight folder")
-    return parser
+    return parser.parse_args()
 
 
 def download_yolo_weight(
@@ -27,9 +27,8 @@ def main(args):
     
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Download Pretrain Weights", parents=[get_args_parser()])
-    args = parser.parse_args()
-
+    args = get_args()
+    
     # make dir
     os.makedirs(args.dst_folder, exist_ok=True)
 

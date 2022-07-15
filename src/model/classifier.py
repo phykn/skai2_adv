@@ -73,7 +73,7 @@ class Classifier(nn.Module):
             score=score,
             embed=embed
         )
-
+   
     def loss(
         self,
         data: Dict[str, torch.Tensor]

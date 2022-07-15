@@ -5,13 +5,13 @@ from tqdm import tqdm
 from dataset.bbox import norm_xyxy_to_yolo
 
 
-def get_args_parser():
+def get_args():
     parser = argparse.ArgumentParser("Make YOLO style label", add_help=False)
     parser.add_argument("--src_csv_path", default="data/train.csv", type=str, help="source csv path")
     parser.add_argument("--src_img_folder", default="data/train", type=str, help="source image folder")
     parser.add_argument("--file_column", default="img_name", type=str, help="column which contains file name")
     parser.add_argument("--single_object", action='store_true', help="all class id is 0")
-    return parser
+    return parser.parse_args()
 
 
 def main(args):
@@ -48,6 +48,4 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Make YOLO style label", parents=[get_args_parser()])
-    args = parser.parse_args()
-    main(args)
+    main(get_args())

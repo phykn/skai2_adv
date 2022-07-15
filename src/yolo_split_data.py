@@ -6,7 +6,7 @@ from typing import List
 from sklearn.model_selection import KFold
 
 
-def get_args_parser():
+def get_args():
     parser = argparse.ArgumentParser("Split Data", add_help=False)
     parser.add_argument("--src_csv_path", default="data/train.csv", type=str, help="source csv path")
     parser.add_argument("--src_img_folder", default="data/train", type=str, help="source image folder")
@@ -14,7 +14,7 @@ def get_args_parser():
     parser.add_argument("--n_splits", default=5, type=int, help="number of fold")
     parser.add_argument("--single_object", action='store_true', help="one class")
     parser.add_argument("--seed", default=42, type=int, help="random seed")
-    return parser
+    return parser.parse_args()
 
 
 def save_yaml(
@@ -97,8 +97,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Split Data", parents=[get_args_parser()])
-    args = parser.parse_args()
+    args = get_args()
 
     # make dir
     os.makedirs(args.dst_txt_folder, exist_ok=True)

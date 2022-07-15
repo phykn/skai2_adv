@@ -209,3 +209,41 @@ class Twin_CLF_Dataset(CLF_Dataset):
                 label=label_1
             )
         )
+    
+    
+class Test_Dataset:
+    def __init__(
+        self,
+        files: List[str],
+        img_size: int=224,
+    ) -> None:
+        self.files = files        
+        self.transform = A.Compose([
+            A.Resize(
+                height=img_size, 
+                width=img_size
+            ),
+            A.Normalize(
+                mean=(0.485, 0.456, 0.406),
+                std=(0.229, 0.224, 0.225),
+                max_pixel_value=255.0,
+                p=1.0
+            )
+        ])
+
+    def __len__(
+        self
+    ) -> int:
+        return len(self.files)
+
+    def __getitem__(
+        self,
+        idx: int
+    ) -> dict:
+        file = self.files[idx]
+        image = open_image(file)
+        image = self.transform(image=image)["image"].transpose(2, 0, 1)
+
+        return dict(
+            input_image=image
+        )

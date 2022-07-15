@@ -10,7 +10,7 @@ from dataset.image_process import (
 )
 
 
-def get_args_parser():
+def get_args():
     parser = argparse.ArgumentParser("Data preparation module", add_help=False)
     parser.add_argument("--src_csv_path", default="data/train.csv", type=str, help="source csv path")
     parser.add_argument("--src_img_folder", default="data/train", type=str, help="source image folder")
@@ -20,7 +20,7 @@ def get_args_parser():
     parser.add_argument("--repeat_l", default=2, type=int, help="number of repeat for large transform")
     parser.add_argument("--repeat_m", default=4, type=int, help="number of repeat for medium transform")
     parser.add_argument("--repeat_s", default=8, type=int, help="number of repeat for small transform")
-    return parser
+    return parser.parse_args()
 
 
 def data_row(
@@ -118,8 +118,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser("Data preparation module", parents=[get_args_parser()])
-    args = parser.parse_args()
+    args = get_args()
     
     # make dir
     os.makedirs(args.dst_img_folder, exist_ok=True)
