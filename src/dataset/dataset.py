@@ -10,17 +10,17 @@ class CLF_Dataset:
     def __init__(
         self,
         files: List[str],
-        labels: List[int],
+        class_ids: List[int],
         img_size: int=224,
         test: bool=False,
         background_files: Optional[List[str]]=None
     ) -> None:
         self.files = files
-        self.labels = labels
+        self.class_ids = class_ids
         self.test = test
         self.background_files = background_files
 
-        unique, self.indices = get_unique_indices(labels)
+        unique, self.indices = get_unique_indices(class_ids)
         self.num_class = len(unique)
         self.setup_transform(img_size=img_size)
 
@@ -33,8 +33,13 @@ class CLF_Dataset:
         self,
         idx: int
     ) -> dict:
-        image, label = self.get_data()            
-        return dict(image=image, label=label)
+        image, class_id, query, label = self.get_data()            
+        return dict(
+            image=image, 
+            class_id=class_id,
+            query=query,
+            label=label
+        )
     
     def get_random_idx(
         self
@@ -129,68 +134,50 @@ class CLF_Dataset:
         image = image.transpose(2, 0, 1)
         return image
     
+    def get_random_query(
+        self
+    ) -> np.ndarray:
+        if self.background_files is not None:
+            return np.random.randint(
+                low=-1, 
+                high=self.num_class, 
+                size=self.num_class, 
+                dtype=int
+            ) + 1
+        else:
+            return np.random.randint(
+                low=0, 
+                high=self.num_class, 
+                size=self.num_class, 
+                dtype=int
+            )
+    
     def get_data(
         self
     ) -> Tuple[np.ndarray, int]:
         idx = self.get_random_idx()            
         if self.background_files is not None:
             if np.random.rand() < 1/(self.num_class+1):
-                label = -1
+                class_id = -1
                 image = open_image(
                     np.random.choice(self.background_files)
                 )
                 image = self.random_crop(image=image)["image"]
             else:
-                label = self.labels[idx]
+                class_id = self.class_ids[idx]
                 image = open_image(self.files[idx])
                 image = self.resize(image=image)["image"]
-            label = label + 1
+            class_id = class_id + 1
 
         else:
-            label = self.labels[idx]
+            class_id = self.class_ids[idx]
             image = open_image(self.files[idx])
             image = self.resize(image=image)["image"]
             
         image = self.transform_image(image)
-        return image, label
-
-
-class Twin_CLF_Dataset(CLF_Dataset):
-    def __init__(
-        self,
-        files: List[str],
-        labels: List[int],
-        img_size: int=224,
-        test: bool=False,
-        background_files: Optional[List[str]]=None
-    ) -> None:
-        self.files = files
-        super().__init__(
-            files=files, 
-            labels=labels, 
-            img_size=img_size,
-            test=test,
-            background_files=background_files            
-        )
-
-    def __len__(
-        self
-    ) -> int:
-        return len(self.files)
-
-    def __getitem__(
-        self,
-        idx: int
-    ) -> dict:
-        image_1, label_1 = self.get_data()
-        image_2, label_2 = self.get_data()
-        return dict(
-            image_1=image_1,
-            label_1=label_1,
-            image_2=image_2,
-            label_2=label_2,
-            compare=1*(label_1==label_2)
-        )
+        query = self.get_random_query()
+        label = np.where(query==class_id, 1, 0)
+        return image, class_id, query, label
 
 
 class Test_Dataset:
@@ -198,8 +185,10 @@ class Test_Dataset:
         self,
         files: List[str],
         img_size: int=224,
+        num_class: int=5
     ) -> None:
         self.files = files
+        self.num_class = num_class
         self.transform = A.Compose([
             A.Resize(
                 height=img_size, 
@@ -225,5 +214,5 @@ class Test_Dataset:
         file = self.files[idx]
         image = open_image(file)
         image = self.transform(image=image)["image"].transpose(2, 0, 1)
-
-        return dict(image=image)
+        query = np.arange(self.num_class)
+        return dict(image=image, query=query)
