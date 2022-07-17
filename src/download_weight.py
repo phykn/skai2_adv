@@ -9,7 +9,7 @@ def get_args():
     return parser.parse_args()
 
 
-def download_yolo_weight(
+def download_yolov5_weight(
     dst_folder: str,
     name: str
 ) -> None:
@@ -17,14 +17,26 @@ def download_yolo_weight(
     with open(os.path.join(args.dst_folder, name), "wb") as f:
         f.write(file.content)
     print(f"Download: {name}")
+
+    
+def download_yolov7_weight(
+    dst_folder: str,
+    name: str
+) -> None:
+    file = requests.get(f"https://github.com/WongKinYiu/yolov7/releases/download/v0.1/{name}", allow_redirects=True)
+    with open(os.path.join(args.dst_folder, name), "wb") as f:
+        f.write(file.content)
+    print(f"Download: {name}")
     
 
 def main(args):
-    download_yolo_weight(args.dst_folder, "yolov5s6.pt")
-    download_yolo_weight(args.dst_folder, "yolov5m6.pt")
-    download_yolo_weight(args.dst_folder, "yolov5l6.pt")
-    download_yolo_weight(args.dst_folder, "yolov5x6.pt")
+    download_yolov5_weight(args.dst_folder, "yolov5s6.pt")
+    download_yolov5_weight(args.dst_folder, "yolov5m6.pt")
+    download_yolov5_weight(args.dst_folder, "yolov5l6.pt")
     
+    download_yolov7_weight(args.dst_folder, "yolov7.pt")
+    download_yolov7_weight(args.dst_folder, "yolov7x.pt")
+
 
 if __name__ == "__main__":
     args = get_args()
