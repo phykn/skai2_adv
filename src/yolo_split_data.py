@@ -12,7 +12,7 @@ def get_args():
     parser.add_argument("--src_img_folder", default="data/train", type=str, help="source image folder")
     parser.add_argument("--dst_txt_folder", default="data/split", type=str, help="destination txt folder")
     parser.add_argument("--n_splits", default=5, type=int, help="number of fold")
-    parser.add_argument("--single_object", action='store_true', help="one class")
+    parser.add_argument("--single_object", action='store_true', help="single class")
     parser.add_argument("--seed", default=42, type=int, help="random seed")
     return parser.parse_args()
 
@@ -50,9 +50,43 @@ def write_data(
 def main(args):
     df = pd.read_csv(args.src_csv_path)
     img_ids = df["img_id"].unique()
-    
+
     if args.n_splits == 0:
-        
+        i = 0
+
+        # set txt path
+        train_txt_path = os.path.join(args.dst_txt_folder, f"train_{i:02d}.txt")
+        valid_txt_path = os.path.join(args.dst_txt_folder, f"valid_{i:02d}.txt")
+
+        # select data
+        df_train = df_valid = df.copy()
+
+        train_image_paths = [os.path.join(args.src_img_folder, file) for file in df_train["img_name"].unique()]
+        valid_image_paths = [os.path.join(args.src_img_folder, file) for file in df_valid["img_name"].unique() if "_origin" in file]
+
+        # write
+        write_data(train_txt_path, train_image_paths)
+        write_data(valid_txt_path, valid_image_paths)
+
+        # save yaml file
+        if args.single_object:
+            save_yaml(
+                path=os.path.join(args.dst_txt_folder, f"dataset_{i:02d}.yaml"),
+                train=train_txt_path,
+                valid=valid_txt_path,
+                nc=1,
+                names=["bolt"],
+                verbose=True
+            )
+        else:
+            save_yaml(
+                path=os.path.join(args.dst_txt_folder, f"dataset_{i:02d}.yaml"),
+                train=train_txt_path,
+                valid=valid_txt_path,
+                nc=5,
+                names=["normal", "unscrewed_red", "rusty_yellow", "rusty_red", "unscrewed_yellow"],
+                verbose=True
+            )
     else:
         kf = KFold(
             n_splits=args.n_splits,
