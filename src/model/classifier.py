@@ -107,7 +107,14 @@ class Classifier(nn.Module):
         y = data["query"]
         t = data["label"]
         
+        # loss
         o = self(x, y).flatten(0, 1)
         t = t.flatten(0)        
         loss = self.ce_loss(o, t)
-        return dict(loss=loss)
+        
+        # accuracy
+        pred = torch.argmax(o, axis=1).detach().cpu().numpy()
+        true = t.detach().cpu().numpy()
+        accuracy = torch.tensor(np.mean(pred==true))
+        
+        return dict(loss=loss, accuracy=accuracy)
