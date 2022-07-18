@@ -10,14 +10,14 @@ from torch.utils.data import DataLoader
 from pytorch_lightning.callbacks import ModelCheckpoint, LearningRateMonitor, StochasticWeightAveraging
 from pytorch_lightning import loggers as pl_loggers
 
-from dataset.dataset import Twin_CLF_Dataset
-from model.classifier import Twin_Classifier
+from dataset.dataset import CLF_Dataset
+from model.classifier import Classifier
 from model.lightning import Lightning
 
 
 def str2bool(v):
     """
-    Converts string to bool type; enables command line 
+    Converts string to bool type; enables command line
     arguments in the format of '--arg1 true --arg2 false'
     """
     if isinstance(v, bool):
@@ -36,6 +36,7 @@ def get_args():
     parser.add_argument("--name", default="model", type=str, help="model name")
     parser.add_argument("--src_csv_path", default="data_prepared/train_crop.csv", type=str, help="source csv path")
     parser.add_argument("--src_img_folder", default="data_prepared/image_crop", type=str, help="source image folder")
+    parser.add_argument("--bg_img_folder", default="data_prepared/image", type=str, help="background image folder")
     parser.add_argument("--random_state", default=42, type=int, help="random seed")
     
     parser.add_argument("--img_size", default=224, type=int, help="input image size")    
@@ -47,12 +48,14 @@ def get_args():
     parser.add_argument("--pin_memory", default=True, type=str2bool, help="pin memory")
     
     parser.add_argument("--pretrained", default=True, type=str2bool, help="use convnext pretrain weight")
-    parser.add_argument("--num_class", default=5, type=int, help="number of class")
-    parser.add_argument("--num_head", default=8, type=int, help="number of transformer head")
-    parser.add_argument("--num_encode_layer", default=3, type=int, help="number of transformer encoder layer")
-    parser.add_argument("--hid_dim", default=256, type=int, help="encoder hidden dim size")
+    parser.add_argument("--num_class", default=6, type=int, help="number of class")
     parser.add_argument("--drop_path_rate", default=0.1, type=float, help="drop path rate of convnext")
     parser.add_argument("--dropout", default=0.1, type=float, help="dropout")
+    parser.add_argument("--d_model", default=256, type=int, help="model dim size")
+    parser.add_argument("--n_head", default=8, type=int, help="number of transformer head")
+    parser.add_argument("--d_ff", default=1024, type=int, help="feed forward network interlayer dimension")
+    parser.add_argument("--num_encode_layer", default=6, type=int, help="number of transformer encoder layer")
+    parser.add_argument("--num_decode_layer", default=6, type=int, help="number of transformer decoder layer")
     parser.add_argument("--label_smoothing", default=0.1, type=float, help="label smoothing")
     
     parser.add_argument("--optimizer", default="adamw", type=str, help="sgd or adamw")
@@ -94,37 +97,43 @@ def main(args):
     # data
     df = pd.read_csv(args.src_csv_path)
     files = np.array([os.path.join(args.src_img_folder, file) for file in df["file"].values])
-    labels = df["label"].values - 2
+    class_ids = df["label"].values - 2
+    background_files = sorted(glob(
+        os.path.join(args.bg_img_folder, "*_no_obj.jpg")
+    ))
 
-    # split data    
+    # split data
     if args.n_splits == 0:
         train_loader = DataLoader(
-            Twin_CLF_Dataset(
-                files=files,
-                labels=labels,
-                img_size=args.img_size,
-                test=False
-            ),
+            dataset = CLF_Dataset(
+            files=files,
+            class_ids=class_ids,
+            test=False,
+            background_files=background_files
+        ),
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_memory,
-            shuffle=True
+            shuffle=True,
+            drop_last=True
         )
 
         np.random.seed(args.random_state)
         valid_index = np.random.choice(range(len(files)), size=int(0.2*len(files)), replace=False)
 
         valid_loader = DataLoader(
-            Twin_CLF_Dataset(
+            CLF_Dataset(
                 files=files[valid_index],
                 labels=labels[valid_index],
                 img_size=args.img_size,
-                test=True
+                test=True,
+                background_files=background_files
             ),
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_memory,
-            shuffle=False
+            shuffle=False,
+            drop_last=False
         )
 
     else:
@@ -137,28 +146,32 @@ def main(args):
         for i, (train_index, valid_index) in enumerate(skf.split(files, labels)):
             if i == args.fold:
                 train_loader = DataLoader(
-                    Twin_CLF_Dataset(
+                    CLF_Dataset(
                         files=files[train_index],
                         labels=labels[train_index],
                         img_size=args.img_size,
-                        test=False
+                        test=False,
+                        background_files=background_files
                     ),
                     batch_size=args.batch_size,
                     num_workers=args.num_workers,
                     pin_memory=args.pin_memory,
-                    shuffle=False
+                    shuffle=True,
+                    drop_last=True
                 )
                 valid_loader = DataLoader(
-                    Twin_CLF_Dataset(
+                    CLF_Dataset(
                         files=files[valid_index],
                         labels=labels[valid_index],
                         img_size=args.img_size,
-                        test=True
+                        test=True,
+                        background_files=background_files
                     ),
                     batch_size=args.batch_size,
                     num_workers=args.num_workers,
                     pin_memory=args.pin_memory,
-                    shuffle=False
+                    shuffle=False,
+                    drop_last=False
                 )
                 break
 
@@ -200,14 +213,16 @@ def main(args):
         callbacks.append(swa)
 
     # model
-    model = Twin_Classifier(
+    model = Classifier(
         pretrained=args.pretrained,
         num_class=args.num_class,
-        num_head=args.num_head,
-        num_encode_layer=args.num_encode_layer,
-        hid_dim=args.hid_dim,
         drop_path_rate=args.drop_path_rate,
         dropout=args.dropout,
+        d_model=args.d_model,
+        n_head=args.n_head,
+        d_ff=args.d_ff,
+        num_encode_layer=args.num_encode_layer,
+        num_decode_layer=args.num_decode_layer,
         label_smoothing=args.label_smoothing
     )
 
