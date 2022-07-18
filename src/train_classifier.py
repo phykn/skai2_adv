@@ -2,6 +2,7 @@ import os
 import argparse
 import numpy as np
 import pandas as pd
+from glob import glob
 from sklearn.model_selection import StratifiedKFold
 
 import torch
@@ -54,8 +55,8 @@ def get_args():
     parser.add_argument("--d_model", default=256, type=int, help="model dim size")
     parser.add_argument("--n_head", default=8, type=int, help="number of transformer head")
     parser.add_argument("--d_ff", default=1024, type=int, help="feed forward network interlayer dimension")
-    parser.add_argument("--num_encode_layer", default=6, type=int, help="number of transformer encoder layer")
-    parser.add_argument("--num_decode_layer", default=6, type=int, help="number of transformer decoder layer")
+    parser.add_argument("--num_encoder_layers", default=6, type=int, help="number of transformer encoder layers")
+    parser.add_argument("--num_decoder_layers", default=6, type=int, help="number of transformer decoder layers")
     parser.add_argument("--label_smoothing", default=0.1, type=float, help="label smoothing")
     
     parser.add_argument("--optimizer", default="adamw", type=str, help="sgd or adamw")
@@ -124,7 +125,7 @@ def main(args):
         valid_loader = DataLoader(
             CLF_Dataset(
                 files=files[valid_index],
-                labels=labels[valid_index],
+                class_ids=class_ids[valid_index],
                 img_size=args.img_size,
                 test=True,
                 background_files=background_files
@@ -143,12 +144,12 @@ def main(args):
             shuffle=True
         )
 
-        for i, (train_index, valid_index) in enumerate(skf.split(files, labels)):
+        for i, (train_index, valid_index) in enumerate(skf.split(files, class_ids)):
             if i == args.fold:
                 train_loader = DataLoader(
                     CLF_Dataset(
                         files=files[train_index],
-                        labels=labels[train_index],
+                        class_ids=class_ids[train_index],
                         img_size=args.img_size,
                         test=False,
                         background_files=background_files
@@ -162,7 +163,7 @@ def main(args):
                 valid_loader = DataLoader(
                     CLF_Dataset(
                         files=files[valid_index],
-                        labels=labels[valid_index],
+                        class_ids=class_ids[valid_index],
                         img_size=args.img_size,
                         test=True,
                         background_files=background_files
@@ -221,8 +222,8 @@ def main(args):
         d_model=args.d_model,
         n_head=args.n_head,
         d_ff=args.d_ff,
-        num_encode_layer=args.num_encode_layer,
-        num_decode_layer=args.num_decode_layer,
+        num_encoder_layers=args.num_encoder_layers,
+        num_decoder_layers=args.num_decoder_layers,
         label_smoothing=args.label_smoothing
     )
 
