@@ -136,26 +136,17 @@ class CLF_Dataset:
         idx: int
     ) -> Tuple[np.ndarray, int]:
         if not self.test:
-            idx = self.get_random_idx()
-            
-            if self.background_files is not None:
-                if np.random.rand() < 1/(self.num_class+1):
-                    class_id = self.num_class
-                    image = open_image(
-                        np.random.choice(self.background_files)
-                    )
-                    image = self.random_crop(image=image)["image"]
-                else:
-                    class_id = self.class_ids[idx]
-                    image = open_image(self.files[idx])
-                    image = self.resize(image=image)["image"]
-        else:
-            class_id = self.class_ids[idx]
-            image = open_image(self.files[idx])
-            image = self.resize(image=image)["image"]
-            
-        image = self.transform_image(image)
-        return image, class_id
+            idx = self.get_random_idx()            
+            if (self.background_files is not None) and (np.random.rand() < 1/(self.num_class+1)):
+                image = open_image(
+                    np.random.choice(self.background_files)
+                )
+                image = self.random_crop(image=image)["image"]
+                return self.transform_image(image), self.num_class
+
+        image = open_image(self.files[idx])
+        image = self.resize(image=image)["image"]
+        return self.transform_image(image), self.class_ids[idx]
 
 
 class Test_Dataset:
