@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from typing import Dict
+from sklearn.metrics import roc_auc_score
 from timm.loss import LabelSmoothingCrossEntropy
 from .convnext import convnext_tiny
 from .layers import ListLayerNorm, ChangeKernel
@@ -12,6 +13,7 @@ class Classifier(nn.Module):
     def __init__(
         self,
         num_class: int=5,
+        num_queries: int=100,
         pretrained: bool=True,
         drop_path_rate: float=0.1,
         dropout: float=0.1,
@@ -40,7 +42,7 @@ class Classifier(nn.Module):
             normalize=True
         )
         self.embed = nn.Embedding(
-            num_embeddings=num_class, 
+            num_embeddings=num_queries, 
             embedding_dim=d_model
         )
         nn.init.xavier_uniform_(self.embed.weight)
@@ -56,7 +58,7 @@ class Classifier(nn.Module):
         
         self.classifier = nn.Linear(
             in_features=d_model,
-            out_features=2
+            out_features=num_class
         )
         nn.init.xavier_uniform_(self.classifier.weight)
         nn.init.constant_(self.classifier.bias, 0)
@@ -71,8 +73,7 @@ class Classifier(nn.Module):
 
     def forward(
         self,
-        x: torch.Tensor,
-        y: torch.Tensor
+        x: torch.Tensor
     ) -> torch.Tensor:
         # convnext
         xs = self.convnext(x)
@@ -86,35 +87,43 @@ class Classifier(nn.Module):
         x = self.bcwh2nbc(x)
         p = self.bcwh2nbc(p)
         
-        # add noise
-        if self.training:
+        if self.train:
             x = x + torch.randn_like(x)
-            
+        
         # y, q
-        y = self.embed(y).permute(1, 0, 2)
+        _, batch_size, _ = x.shape
+        y = self.embed.weight.unsqueeze(1).repeat(1, batch_size, 1)
         q = self.pe_1d(y)
         
         # transformer
         o = self.transformer(x, p, y, q)
+        o = torch.mean(o, axis=1)
         o = self.classifier(o)
         return o
+    
+    def predict(
+        self,
+        data: Dict[str, torch.Tensor]
+    ) -> Dict[str, torch.Tensor]:
+        x = data["image"]
+        return self(x)
     
     def loss(
         self,
         data: Dict[str, torch.Tensor]
-    ) -> torch.Tensor:
+    ) -> Dict[str, torch.Tensor]:
         x = data["image"]
-        y = data["query"]
-        t = data["label"]
+        t = data["class_id"]
         
         # loss
-        o = self(x, y).flatten(0, 1)
-        t = t.flatten(0)        
+        o = self(x)    
         loss = self.ce_loss(o, t)
         
         # accuracy
-        pred = torch.argmax(o, axis=1).detach().cpu().numpy()
-        true = t.detach().cpu().numpy()
-        accuracy = torch.tensor(np.mean(pred==true))
+        pred = o.detach().cpu().numpy()
+        true = t.detach().cpu().numpy()        
+        pred_label = np.argmax(pred, axis=1)
+        pred_proba = pred[:, 1]        
+        acc = torch.tensor(np.mean(true==pred_label))
         
-        return dict(loss=loss, accuracy=accuracy)
+        return dict(loss=loss, acc=acc)
