@@ -33,13 +33,8 @@ class CLF_Dataset:
         self,
         idx: int
     ) -> dict:
-        image, class_id, query, label = self.get_data()            
-        return dict(
-            image=image, 
-            class_id=class_id,
-            query=query,
-            label=label
-        )
+        image, class_id = self.get_data(idx)            
+        return dict(image=image, class_id=class_id)
     
     def get_random_idx(
         self
@@ -69,19 +64,21 @@ class CLF_Dataset:
             A.RandomRotate90(
                 p=0.5
             ),
-            A.ShiftScaleRotate(
-                shift_limit=0.2,
-                scale_limit=0.2,
-                rotate_limit=20,
-                interpolation=1,
-                border_mode=0,
-                value=0,
-                p=0.5
-            ),
-            A.ElasticTransform(
-                border_mode=0,
-                p=0.5
-            )
+            A.OneOf([
+                A.ShiftScaleRotate(
+                    shift_limit=0.2,
+                    scale_limit=0.2,
+                    rotate_limit=20,
+                    interpolation=1,
+                    border_mode=0,
+                    value=0,
+                    p=1.0
+                ),
+                A.ElasticTransform(
+                    border_mode=0,
+                    p=1.0
+                )
+            ], p=1.0)
         ])
 
         self.recolor = A.Compose([
@@ -134,61 +131,40 @@ class CLF_Dataset:
         image = image.transpose(2, 0, 1)
         return image
     
-    def get_random_query(
-        self
-    ) -> np.ndarray:
-        if self.background_files is not None:
-            return np.random.randint(
-                low=-1, 
-                high=self.num_class, 
-                size=self.num_class, 
-                dtype=int
-            ) + 1
-        else:
-            return np.random.randint(
-                low=0, 
-                high=self.num_class, 
-                size=self.num_class, 
-                dtype=int
-            )
-    
     def get_data(
-        self
+        self,
+        idx: int
     ) -> Tuple[np.ndarray, int]:
-        idx = self.get_random_idx()            
-        if self.background_files is not None:
-            if np.random.rand() < 1/(self.num_class+1):
-                class_id = -1
-                image = open_image(
-                    np.random.choice(self.background_files)
-                )
-                image = self.random_crop(image=image)["image"]
-            else:
-                class_id = self.class_ids[idx]
-                image = open_image(self.files[idx])
-                image = self.resize(image=image)["image"]
-            class_id = class_id + 1
-
+        if not self.test:
+            idx = self.get_random_idx()
+            
+            if self.background_files is not None:
+                if np.random.rand() < 1/(self.num_class+1):
+                    class_id = self.num_class
+                    image = open_image(
+                        np.random.choice(self.background_files)
+                    )
+                    image = self.random_crop(image=image)["image"]
+                else:
+                    class_id = self.class_ids[idx]
+                    image = open_image(self.files[idx])
+                    image = self.resize(image=image)["image"]
         else:
             class_id = self.class_ids[idx]
             image = open_image(self.files[idx])
             image = self.resize(image=image)["image"]
             
         image = self.transform_image(image)
-        query = self.get_random_query()
-        label = np.where(query==class_id, 1, 0)
-        return image, class_id, query, label
+        return image, class_id
 
 
 class Test_Dataset:
     def __init__(
         self,
         files: List[str],
-        img_size: int=224,
-        num_class: int=5
+        img_size: int=224
     ) -> None:
         self.files = files
-        self.num_class = num_class
         self.transform = A.Compose([
             A.Resize(
                 height=img_size, 
@@ -214,5 +190,4 @@ class Test_Dataset:
         file = self.files[idx]
         image = open_image(file)
         image = self.transform(image=image)["image"].transpose(2, 0, 1)
-        query = np.arange(self.num_class)
-        return dict(image=image, query=query)
+        return dict(image=image)
