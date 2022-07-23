@@ -50,6 +50,7 @@ def get_args():
     
     parser.add_argument("--pretrained", default=True, type=str2bool, help="use convnext pretrain weight")
     parser.add_argument("--num_class", default=6, type=int, help="number of class")
+    parser.add_argument("--num_queries", default=100, type=int, help="number of quries")
     parser.add_argument("--drop_path_rate", default=0.1, type=float, help="drop path rate of convnext")
     parser.add_argument("--dropout", default=0.1, type=float, help="dropout")
     parser.add_argument("--d_model", default=256, type=int, help="model dim size")
@@ -77,7 +78,7 @@ def get_args():
     
     parser.add_argument("--gradient_clip_val", default=1.0, type=float, help="gradient clip value")
     parser.add_argument("--accumulate_grad_batches", default=1, type=int, help="accumulate grad batches")
-    parser.add_argument("--log_every_n_steps", default=10, type=int, help="log steps")
+    parser.add_argument("--log_every_n_steps", default=1, type=int, help="log steps")
     parser.add_argument("--precision", default=16, type=int, help="16 of 32")
     parser.add_argument("--gpus", default=1, type=int, help="number of gpus")
     
@@ -119,13 +120,10 @@ def main(args):
             drop_last=True
         )
 
-        np.random.seed(args.random_state)
-        valid_index = np.random.choice(range(len(files)), size=int(0.2*len(files)), replace=False)
-
         valid_loader = DataLoader(
             CLF_Dataset(
-                files=files[valid_index],
-                class_ids=class_ids[valid_index],
+                files=files,
+                class_ids=class_ids,
                 img_size=args.img_size,
                 test=True,
                 background_files=background_files
@@ -217,6 +215,7 @@ def main(args):
     model = Classifier(
         pretrained=args.pretrained,
         num_class=args.num_class,
+        num_queries=args.num_queries,
         drop_path_rate=args.drop_path_rate,
         dropout=args.dropout,
         d_model=args.d_model,

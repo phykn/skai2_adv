@@ -58,11 +58,8 @@ def main(args):
         train_txt_path = os.path.join(args.dst_txt_folder, f"train_{i:02d}.txt")
         valid_txt_path = os.path.join(args.dst_txt_folder, f"valid_{i:02d}.txt")
 
-        # select data
-        df_train = df_valid = df.copy()
-
-        train_image_paths = [os.path.join(args.src_img_folder, file) for file in df_train["img_name"].unique()]
-        valid_image_paths = [os.path.join(args.src_img_folder, file) for file in df_valid["img_name"].unique() if "_origin" in file]
+        train_image_paths = [os.path.join(args.src_img_folder, file) for file in df["img_name"].unique() if "_origin" not in file]
+        valid_image_paths = [os.path.join(args.src_img_folder, file) for file in df["img_name"].unique() if "_origin" in file]
 
         # write
         write_data(train_txt_path, train_image_paths)

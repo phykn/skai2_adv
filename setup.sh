@@ -22,7 +22,7 @@ python src/data_prepare.py \
 --src_img_folder "/home/work/data/train" \
 --dst_csv_path "/home/work/data_prepared/train.csv" \
 --dst_img_folder "/home/work/data_prepared/image" \
---img_size 1280 --repeat_l 0 --repeat_m 2 --repeat_s 4
+--img_size 1280 --repeat_l 1 --repeat_m 2 --repeat_s 4
 
 # make label for yolo
 python src/yolo_make_label.py \

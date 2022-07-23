@@ -180,5 +180,6 @@ class Test_Dataset:
     ) -> dict:
         file = self.files[idx]
         image = open_image(file)
-        image = self.transform(image=image)["image"].transpose(2, 0, 1)
+        image = self.transform(image=image)["image"]
+        image = image.transpose(2, 0, 1)
         return dict(image=image)

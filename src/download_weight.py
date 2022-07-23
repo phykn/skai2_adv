@@ -32,10 +32,10 @@ def download_yolov7_weight(
 def main(args):
     download_yolov5_weight(args.dst_folder, "yolov5s6.pt")
     download_yolov5_weight(args.dst_folder, "yolov5m6.pt")
-    download_yolov5_weight(args.dst_folder, "yolov5l6.pt")
-    
+
     download_yolov7_weight(args.dst_folder, "yolov7.pt")
     download_yolov7_weight(args.dst_folder, "yolov7x.pt")
+    download_yolov7_weight(args.dst_folder, "yolov7-w6.pt")
 
 
 if __name__ == "__main__":

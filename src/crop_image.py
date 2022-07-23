@@ -24,7 +24,7 @@ def main(args):
 
     new_img_id = 0
     df_out = []
-    for img_id in tqdm(img_ids):
+    for img_id in tqdm(img_ids, desc="crop images"):
         df_img = group.get_group(img_id)
 
         extractor = extract_objects(
