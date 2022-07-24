@@ -33,9 +33,9 @@ class CLF_Dataset:
         self,
         idx: int
     ) -> dict:
-        image, class_id = self.get_data(idx)            
+        image, class_id = self.get_data(idx)
         return dict(image=image, class_id=class_id)
-    
+
     def get_random_idx(
         self
     ) -> int:
@@ -130,13 +130,13 @@ class CLF_Dataset:
         image = self.normalize(image=image)["image"]
         image = image.transpose(2, 0, 1)
         return image
-    
+
     def get_data(
         self,
         idx: int
     ) -> Tuple[np.ndarray, int]:
         if not self.test:
-            idx = self.get_random_idx()            
+            idx = self.get_random_idx()
             if (self.background_files is not None) and (np.random.rand() < 1/(self.num_class+1)):
                 image = open_image(
                     np.random.choice(self.background_files)

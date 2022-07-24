@@ -4,14 +4,14 @@ import numpy as np
 import pandas as pd
 from glob import glob
 from tqdm import tqdm
+from typing import List
 
 import torch
-import torch.nn.functional as F
-from torch.utils.data import DataLoader 
+from torch.utils.data import DataLoader
 
 from dataset.bbox import yolo_to_norm_xyxy
 from dataset.dataset import Test_Dataset
-from model.classifier import Twin_Classifier
+from model.classifier import Classifier
 
 
 def str2bool(v):
@@ -32,137 +32,219 @@ def str2bool(v):
 def get_args():
     parser = argparse.ArgumentParser("Submission Module", add_help=False)
     parser.add_argument("--img_folder", default="data/predict", type=str, help="image folder")
-    parser.add_argument("--root", default="inference", type=str, help="root folder")
+    parser.add_argument("--inference_folder", default="inference", type=str, help="inference_folder")
     parser.add_argument("--output", default="submission.csv", type=str, help="output file name")
-    parser.add_argument("--weight", default="weight.pt", type=str, help="model weight file")
+
+    parser.add_argument("--use_clf", default=True, type=str2bool, help="use classification model")
+    parser.add_argument("--clf_num_class", default=6, type=int, help="model label number")
+    parser.add_argument("--clf_weight", default="weight.pt", type=str, help="model weight")
+
+    parser.add_argument("--img_size", default=224, type=int, help="img size")
     parser.add_argument("--batch_size", default=64, type=int, help="batch size")
     parser.add_argument("--num_workers", default=4, type=int, help="num workers")
-    parser.add_argument("--pin_memory", default=True, type=str2bool, help="pin memory")    
-    parser.add_argument("--base_file_len", default=14, type=int, help="base length of file name")
+    parser.add_argument("--cuda", default=True, type=str2bool, help="use gpu")
     return parser.parse_args()
+
+
+label_dict = {
+    0: "normal",
+    1: "unscrewed_red",
+    2: "rusty_yellow",
+    3: "rusty_red",
+    4: "unscrewed_yellow"
+}
 
 
 def read_label(
     path: str
 ) -> pd.DataFrame:
-    img_id = os.path.split(path)[1].replace(".txt", ".jpg")
-    
+    name = os.path.split(path)[1]
+    name = os.path.splitext(name)[0]
+
     if os.path.exists(path):
-        with open(path, "r") as f: 
+        with open(path, "r") as f:
             lines = f.readlines()
-        
+
         df = []
+        memory = {i:0 for i in range(len(label_dict))}
         for line in lines:
             line = line.replace("\n", "")
             items = line.split(" ")
             items = [float(item) for item in items]
+            class_id = int(items[0])
             bbox = yolo_to_norm_xyxy(items[1:5])
+            score = items[5]
+            memory[class_id] += 1
 
             df_row = dict(
-                img_id=img_id,
-                class_id=1,
-                score=items[5],
+                img_id=f"{name}.jpg",
+                class_id=class_id+2,
+                score=score,
                 x1=bbox[0],
                 y1=bbox[1],
                 x2=bbox[2],
-                y2=bbox[3]
+                y2=bbox[3],
+                crop=f"{label_dict[class_id]}/{name}{memory[class_id]}.jpg" if memory[class_id] > 1 else f"{label_dict[class_id]}/{name}.jpg"
             )
             df_row = pd.DataFrame(pd.Series(df_row)).T
             df.append(df_row)
         df = pd.concat(df)
         return df
-    
+
     else:
         df_row = dict(
-            img_id=img_id,
+            img_id=f"{name}.jpg",
             class_id=0,
             score=0,
             x1=0,
             y1=0,
             x2=0,
-            y2=0
+            y2=0,
+            crop=None
         )
         df = pd.DataFrame(pd.Series(df_row)).T
         return df
-    
-    
+
+
+def softmax(
+    x: np.ndarray
+) -> np.ndarray:
+    exp = np.exp(x)
+    return exp / np.sum(exp, axis=1, keepdims=True)
+
+
+def correction_bbox_zero_class_id(
+    x: pd.Series
+) -> pd.Series:
+    class_id = x["class_id"]
+    if class_id == 0:
+        x["score"] = 0
+        x["x1"] = 0
+        x["y1"] = 0
+        x["x2"] = 0
+        x["y2"] = 0
+    return x
+
+
+def add_zero_class_id(
+    df: pd.DataFrame,
+    img_ids: List[str]
+) -> pd.DataFrame:
+    group = df.groupby("img_id")
+    group_keys = list(group.groups.keys())
+    df_out = []
+    for img_id in img_ids:
+        if img_id in group_keys:
+            df_out.append(group.get_group(img_id))
+        else:
+            df_row = dict(
+                img_id=img_id,
+                class_id=0,
+                score=0,
+                x1=0,
+                y1=0,
+                x2=0,
+                y2=0
+            )
+            df_row = pd.DataFrame(pd.Series(df_row)).T
+            df_out.append(df_row)
+    return pd.concat(df_out)
+
+
+def post_process(
+    df: pd.DataFrame, 
+    img_ids: List[str]
+) -> pd.DataFrame:
+    df = df.drop(columns=["crop"])
+    df = df.apply(lambda x: correction_bbox_zero_class_id(x), axis=1)
+    df = df.loc[df["class_id"] > 0]
+    df = add_zero_class_id(df, img_ids)
+    return df
+
+
 def main(args):
-    # get bboxes
     img_paths = sorted(glob(os.path.join(args.img_folder, "*.jpg")))
     df = []
-    for img_path in tqdm(img_paths, desc="convert text to dataframe"):
-        img_id = os.path.split(img_path)[1]    
-        label = os.path.join(args.root, "labels", img_id.replace(".jpg", ".txt"))
-        df_label = read_label(label)
+    for img_path in tqdm(img_paths, desc="concatenate"):
+        img_id = os.path.split(img_path)[1]
+        name = os.path.splitext(img_id)[0]
+        label_path = os.path.join(args.inference_folder, "labels", f"{name}.txt")
+        df_label = read_label(label_path)
         df.append(df_label)
     df = pd.concat(df).reset_index(drop=True)
 
-    # rename crop images
-    crop_paths = sorted(glob(os.path.join(args.root, "crops", "*/*jpg")))
-    for path in tqdm(crop_paths, desc="rename"):
-        folder, file = os.path.split(path)
-        name, ext = os.path.splitext(file)
+    if args.use_clf:
+        clf_label = np.zeros(len(df))
+        clf_score = np.zeros(len(df))
 
-        num = name[args.base_file_len:]
-        num = int(num) if num!="" else 1
-        name = f"{name[:args.base_file_len]}{num:04d}"
+        # get crop images
+        crop_index = df["crop"].dropna().index.to_list()
+        crop_paths = df["crop"].dropna().values
+        crop_paths = [f"{args.inference_folder}/crops/{sub_path}" for sub_path in crop_paths]
 
-        os.rename(path, os.path.join(folder, f"{name}{ext}"))
+        # dataset
+        dataset = Test_Dataset(
+            files=crop_paths,
+            img_size=args.img_size
+        )
 
-    # get crop image paths
-    crop_paths = sorted(glob(os.path.join(args.root, "crops", "*/*jpg")))
-    
-    # load model    
-    model = Twin_Classifier()
-    model.load_state_dict(torch.load(args.weight))
-    model = model.clf
-    model.cuda()
-    model.eval()
-    
-    # dataset
-    dataset = Test_Dataset(
-        files=crop_paths,
-        img_size=224
-    )
-    dataloader = DataLoader(
-        dataset,
-        batch_size=args.batch_size, 
-        num_workers=args.num_workers, 
-        pin_memory=args.pin_memory,
-        shuffle=False, 
-    )
-    
-    # predict
-    class_ids = []
-    scores = []
-    for data in tqdm(dataloader, desc="predict"):
-        data = {k: v.cuda() for k, v in data.items()}
+        # dataloader
+        dataloader = DataLoader(
+            dataset,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
+            pin_memory= True if args.cuda else False,
+            shuffle=False,
+        )
 
-        with torch.no_grad():
-            pred = model(data["input_image"])
-            pred = F.softmax(pred["logit"], dim=1).cpu().numpy()        
+        # model
+        model = Classifier(num_class=args.clf_num_class)
+        model.load_state_dict(
+            torch.load(args.clf_weight)
+        )
+        model.eval()
+        if args.cuda:
+            model.cuda()
 
-        class_id = np.argmax(pred, axis=1) + 2
-        score = np.max(pred, axis=1)
+        # predict
+        pred_label = []
+        pred_score = []
+        for data in tqdm(dataloader, desc="clf predict"):
+            if args.cuda:
+                data = {k: v.cuda() for k, v in data.items()}
 
-        class_ids.append(class_id)
-        scores.append(score)
+            with torch.no_grad():
+                pred = model.predict(data)
 
-    class_ids = np.concatenate(class_ids)
-    scores = np.concatenate(scores)
-    
-    # submission file
-    df_bolt = df.query("class_id==1").copy()
-    df_bolt["class_id"] = class_ids
-    df_bolt["score"] = df_bolt["score"].values * scores
-    df_none = df.query("class_id==0").copy()
-    df_result = pd.concat([df_bolt, df_none]).sort_index()
-    
-    # save file
-    dst = os.path.join(args.root, args.output)
-    df_result.to_csv(dst, index=False, encoding="utf-8-sig")
+            pred = pred.detach().cpu().numpy()
+            if args.clf_num_class == 6:
+                pred[:, [0, 1, 2, 3, 4, 5]] = pred[:, [5, 0, 1, 2, 3, 4]]
+                pred = np.insert(pred, 1, 0, axis=1)
+
+            proba = softmax(pred)
+            label = np.argmax(proba, axis=1)
+
+            pred_score.append(np.max(proba, axis=1))
+            pred_label.append(label)
+
+        pred_label = np.concatenate(pred_label)
+        pred_score = np.concatenate(pred_score)
+
+        clf_label[crop_index] = pred_label
+        clf_score[crop_index] = pred_score
+
+        df["class_id"] = clf_label.astype(int)
+        df["score"] = clf_score
+
+
+    # save submission file
+    img_ids = [os.path.split(path)[1] for path in img_paths]
+    df_submission = post_process(df, img_ids)
+
+    dst = os.path.join(args.inference_folder, args.output)
+    df_submission.to_csv(dst, index=False, encoding="utf-8-sig")
     print(f"file saved: {dst}")
-    
-    
+
+
 if __name__ == "__main__":
     main(get_args())
