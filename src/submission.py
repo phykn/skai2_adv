@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from dataset.bbox import yolo_to_norm_xyxy
 from dataset.dataset import Test_Dataset
 from model.classifier import Classifier
+from utils.nms import non_max_suppression_index
 
 
 def str2bool(v):
@@ -38,6 +39,7 @@ def get_args():
     parser.add_argument("--use_clf", default=True, type=str2bool, help="use classification model")
     parser.add_argument("--clf_num_class", default=6, type=int, help="model label number")
     parser.add_argument("--clf_weight", default="weight.pt", type=str, help="model weight")
+    parser.add_argument("--overlapThresh", default=0.9, type=float, help="overlap threshold for NMS")
 
     parser.add_argument("--img_size", default=224, type=int, help="img size")
     parser.add_argument("--batch_size", default=64, type=int, help="batch size")
@@ -126,6 +128,34 @@ def correction_bbox_zero_class_id(
     return x
 
 
+def score_ensemble(x):
+    class_num = 7
+
+    class_id = x["class_id"]
+    pos_score = x["score"]
+    neg_score = (1 - pos_score)/5
+
+    index = list(range(class_num))
+    index.remove(1)
+    index.remove(class_id)
+
+    obd_prob = np.zeros(class_num)
+    obd_prob[class_id] = pos_score
+    obd_prob[index] = neg_score
+    obd_prob = obd_prob / np.sum(obd_prob)
+
+    clf_prob = x[["0", "1", "2", "3", "4", "5", "6"]].values
+    clf_prob = clf_prob.astype(float)
+
+    prob = np.sqrt(obd_prob*clf_prob)
+    prob = prob / (np.sum(prob)+1e-7)
+
+    x = x.copy()
+    x["ensemble_class_id"] = np.argmax(prob)
+    x["ensemble_score"] = np.max(prob)
+    return x
+
+
 def add_zero_class_id(
     df: pd.DataFrame,
     img_ids: List[str]
@@ -151,14 +181,47 @@ def add_zero_class_id(
     return pd.concat(df_out)
 
 
+def NMS(
+    df: pd.DataFrame,
+    overlapThresh: float=0.9
+) -> pd.DataFrame:
+    img_ids = df["img_id"].unique()
+    group = df.groupby(by="img_id")
+
+    df_out = []
+    for img_id in img_ids:
+        df_tmp = group.get_group(img_id).reset_index(drop=True)
+        index = non_max_suppression_index(
+            bboxes=df_tmp[["x1", "y1", "x2", "y2"]].values,
+            probs=df_tmp["score"].values,
+            overlapThresh=overlapThresh
+        )
+        df_out.append(df_tmp.iloc[index])
+
+    df_out = pd.concat(df_out, axis=0).reset_index(drop=True)
+    return df_out
+
+
 def post_process(
-    df: pd.DataFrame, 
-    img_ids: List[str]
+    df: pd.DataFrame,
+    img_ids: List[str],
+    use_clf: bool,
+    overlapThresh: float=0.9
 ) -> pd.DataFrame:
     df = df.drop(columns=["crop"])
+    if use_clf:
+        df = df.apply(lambda x: score_ensemble(x), axis=1)
+        df["class_id"] = df["ensemble_class_id"].values.astype(int)
+        df["score"] = df["ensemble_score"]
+        df = df.drop(
+            columns=["clf_class_id", "clf_score", "0", "1", "2", "3", "4", "5", "6", "ensemble_class_id", "ensemble_score"]
+        )
+        df = NMS(df, overlapThresh=overlapThresh)
+
     df = df.apply(lambda x: correction_bbox_zero_class_id(x), axis=1)
     df = df.loc[df["class_id"] > 0]
     df = add_zero_class_id(df, img_ids)
+    df = df.fillna(0)
     return df
 
 
@@ -176,6 +239,7 @@ def main(args):
     if args.use_clf:
         clf_label = np.zeros(len(df))
         clf_score = np.zeros(len(df))
+        clf_proba = np.zeros((len(df), 7))
 
         # get crop images
         crop_index = df["crop"].dropna().index.to_list()
@@ -209,6 +273,7 @@ def main(args):
         # predict
         pred_label = []
         pred_score = []
+        pred_proba = []
         for data in tqdm(dataloader, desc="clf predict"):
             if args.cuda:
                 data = {k: v.cuda() for k, v in data.items()}
@@ -219,27 +284,32 @@ def main(args):
             pred = pred.detach().cpu().numpy()
             if args.clf_num_class == 6:
                 pred[:, [0, 1, 2, 3, 4, 5]] = pred[:, [5, 0, 1, 2, 3, 4]]
-                pred = np.insert(pred, 1, 0, axis=1)
+                pred = np.insert(pred, 1, -np.inf, axis=1)
 
             proba = softmax(pred)
             label = np.argmax(proba, axis=1)
 
             pred_score.append(np.max(proba, axis=1))
             pred_label.append(label)
+            pred_proba.append(proba)
 
         pred_label = np.concatenate(pred_label)
         pred_score = np.concatenate(pred_score)
+        pred_proba = np.concatenate(pred_proba)
 
         clf_label[crop_index] = pred_label
         clf_score[crop_index] = pred_score
+        clf_proba[crop_index] = pred_proba
 
-        df["class_id"] = clf_label.astype(int)
-        df["score"] = clf_score
+        df["clf_class_id"] = clf_label.astype(int)
+        df["clf_score"] = clf_score
+        df_proba = pd.DataFrame(data=clf_proba, columns=[str(i) for i in range(7)])
+        df = pd.concat([df, df_proba], axis=1)
 
 
     # save submission file
     img_ids = [os.path.split(path)[1] for path in img_paths]
-    df_submission = post_process(df, img_ids)
+    df_submission = post_process(df, img_ids, use_clf=args.use_clf, overlapThresh=args.overlapThresh)
 
     dst = os.path.join(args.inference_folder, args.output)
     df_submission.to_csv(dst, index=False, encoding="utf-8-sig")

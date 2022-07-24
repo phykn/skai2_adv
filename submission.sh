@@ -13,8 +13,8 @@ python src/submission.py \
 --img_folder "/home/work/data/predict" \
 --inference_folder "/home/work/inference" \
 --output "submission.csv" \
---use_clf false --img_size 224 --batch_size 32 --num_workers 4 --cuda true \
+--use_clf true --overlapThresh 0.9 --img_size 224 --batch_size 32 --num_workers 4 --cuda true \
 --clf_weight "/home/work/runs_clf/classifier_all_transformer_zero_tgt_300_epoch/weight/last.pt"
 
-rm -rf inference/crops
-rm -rf inference/labels
+# rm -rf inference/crops
+# rm -rf inference/labels
