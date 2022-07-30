@@ -7,6 +7,7 @@ from ..dataset.bbox import norm_xyxy_to_pixel_xyxy
 
 text_dict = {
     0: "bg",
+    1: "etc",
     2: "normal",
     3: "unscrewed_red",
     4: "rusty_yellow",
@@ -16,6 +17,7 @@ text_dict = {
 
 color_dict = {
     0: "gray",
+    1: "black",
     2: "green",
     3: "blue",
     4: "orange",
@@ -30,10 +32,17 @@ def plot_bbox(
     labels: List[float],
     scores: List[float]
 ) -> None:
+    if not isinstance(bboxes, np.ndarray):
+        bboxes = np.array(bboxes)
+    if not isinstance(bboxes, np.ndarray):
+        labels = np.array(labels)
+    if not isinstance(bboxes, np.ndarray):
+        scores = np.array(scores)
+        
     """box is normalized xyxy"""
     image_height, image_width, _ = image.shape
 
-    fig = plt.figure(figsize=(10, 10))
+    fig = plt.figure(figsize=(15, 15))
     ax = fig.add_subplot(111)
     ax.imshow(image)
     for bbox, label, score in zip(bboxes, labels, scores):
@@ -52,4 +61,5 @@ def plot_bbox(
             fontsize=12, 
             bbox=dict(facecolor=color_dict[label], alpha=0.3)
         )
+    plt.axis("off")
     plt.show()

@@ -38,6 +38,9 @@ def get_args():
     parser.add_argument("--src_csv_path", default="data_prepared/train_crop.csv", type=str, help="source csv path")
     parser.add_argument("--src_img_folder", default="data_prepared/image_crop", type=str, help="source image folder")
     parser.add_argument("--bg_img_folder", default="data_prepared/image", type=str, help="background image folder")
+    parser.add_argument("--add_data_folder", default="data_prepared/cifar100", type=str, help="additional data folder")  
+    parser.add_argument("--bg_ratio", default=0.2, type=float, help="background image ratio")
+    parser.add_argument("--add_ratio", default=0.2, type=float, help="additional image ratio")
     parser.add_argument("--random_state", default=42, type=int, help="random seed")
     
     parser.add_argument("--img_size", default=224, type=int, help="input image size")    
@@ -49,7 +52,7 @@ def get_args():
     parser.add_argument("--pin_memory", default=True, type=str2bool, help="pin memory")
     
     parser.add_argument("--pretrained", default=True, type=str2bool, help="use convnext pretrain weight")
-    parser.add_argument("--num_class", default=6, type=int, help="number of class")
+    parser.add_argument("--num_class", default=7, type=int, help="number of class")
     parser.add_argument("--num_queries", default=100, type=int, help="number of quries")
     parser.add_argument("--drop_path_rate", default=0.1, type=float, help="drop path rate of convnext")
     parser.add_argument("--dropout", default=0.1, type=float, help="dropout")
@@ -61,11 +64,14 @@ def get_args():
     parser.add_argument("--label_smoothing", default=0.1, type=float, help="label smoothing")
     
     parser.add_argument("--optimizer", default="adamw", type=str, help="sgd or adamw")
-    parser.add_argument("--epoch", default=100, type=int, help="number of epochs")
+    parser.add_argument("--epoch", default=300, type=int, help="number of epochs")
+    parser.add_argument("--first_cycle_steps", default=100, type=int, help="number of epochs")
+    parser.add_argument("--cycle_mult", default=2.0, type=float, help="cycle_mult")    
     parser.add_argument("--warmup_steps", default=5, type=int, help="warmup steps")
     parser.add_argument("--max_lr", default=1e-4, type=float, help="maximum learning rate")
     parser.add_argument("--min_lr", default=1e-5, type=float, help="minimum learning rate")
     parser.add_argument("--weight_decay", default=1e-4, type=float, help="weight_decay")
+    parser.add_argument("--gamma", default=0.1, type=float, help="gamma")
     
     parser.add_argument("--ckpt_monitor", default="valid_loss", type=str, help="checkpoint monitor")
     parser.add_argument("--ckpt_mode", default="min", type=str, help="checkpoint mode")
@@ -99,7 +105,7 @@ def main(args):
     # data
     df = pd.read_csv(args.src_csv_path)
     files = np.array([os.path.join(args.src_img_folder, file) for file in df["file"].values])
-    class_ids = df["label"].values - 2
+    class_ids = df["label"].values
     background_files = sorted(glob(
         os.path.join(args.bg_img_folder, "*_no_obj.jpg")
     ))
@@ -108,11 +114,15 @@ def main(args):
     if args.n_splits == 0:
         train_loader = DataLoader(
             dataset = CLF_Dataset(
-            files=files,
-            class_ids=class_ids,
-            test=False,
-            background_files=background_files
-        ),
+                files=files,
+                class_ids=class_ids,
+                background_files=background_files,
+                add_data_folder=args.add_data_folder,
+                background_ratio=args.bg_ratio,
+                add_data_ratio=args.add_ratio,
+                img_size=args.img_size,
+                test=False
+            ),
             batch_size=args.batch_size,
             num_workers=args.num_workers,
             pin_memory=args.pin_memory,
@@ -124,9 +134,12 @@ def main(args):
             CLF_Dataset(
                 files=files,
                 class_ids=class_ids,
+                background_files=background_files,
+                add_data_folder=args.add_data_folder,
+                background_ratio=args.bg_ratio,
+                add_data_ratio=args.add_ratio,
                 img_size=args.img_size,
-                test=True,
-                background_files=background_files
+                test=True
             ),
             batch_size=args.batch_size,
             num_workers=args.num_workers,
@@ -148,9 +161,12 @@ def main(args):
                     CLF_Dataset(
                         files=files[train_index],
                         class_ids=class_ids[train_index],
+                        background_files=background_files,
+                        add_data_folder=args.add_data_folder,
+                        background_ratio=args.bg_ratio,
+                        add_data_ratio=args.add_ratio,
                         img_size=args.img_size,
-                        test=False,
-                        background_files=background_files
+                        test=False
                     ),
                     batch_size=args.batch_size,
                     num_workers=args.num_workers,
@@ -162,9 +178,12 @@ def main(args):
                     CLF_Dataset(
                         files=files[valid_index],
                         class_ids=class_ids[valid_index],
+                        background_files=background_files,
+                        add_data_folder=args.add_data_folder,
+                        background_ratio=args.bg_ratio,
+                        add_data_ratio=args.add_ratio,
                         img_size=args.img_size,
-                        test=True,
-                        background_files=background_files
+                        test=True
                     ),
                     batch_size=args.batch_size,
                     num_workers=args.num_workers,
@@ -230,11 +249,13 @@ def main(args):
     lightning = Lightning(
         model=model,
         optimizer=args.optimizer,
-        first_cycle_steps=args.epoch,
+        first_cycle_steps=args.first_cycle_steps,
+        cycle_mult=args.cycle_mult,
         warmup_steps=args.warmup_steps,
         max_lr=args.max_lr,
         min_lr=args.min_lr,
-        weight_decay=args.weight_decay
+        weight_decay=args.weight_decay,
+        gamma=args.gamma,
     )
 
     # trainer

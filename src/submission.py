@@ -13,6 +13,7 @@ from dataset.bbox import yolo_to_norm_xyxy
 from dataset.dataset import Test_Dataset
 from model.classifier import Classifier
 from utils.nms import non_max_suppression_index
+from utils.mics import softmax
 
 
 def str2bool(v):
@@ -37,8 +38,21 @@ def get_args():
     parser.add_argument("--output", default="submission.csv", type=str, help="output file name")
 
     parser.add_argument("--use_clf", default=True, type=str2bool, help="use classification model")
-    parser.add_argument("--clf_num_class", default=6, type=int, help="model label number")
+    parser.add_argument("--pretrained", default=True, type=str2bool, help="use convnext pretrain weight")
+    parser.add_argument("--num_class", default=7, type=int, help="number of class")
+    parser.add_argument("--num_queries", default=100, type=int, help="number of quries")
+    parser.add_argument("--drop_path_rate", default=0.1, type=float, help="drop path rate of convnext")
+    parser.add_argument("--dropout", default=0.1, type=float, help="dropout")
+    parser.add_argument("--d_model", default=256, type=int, help="model dim size")
+    parser.add_argument("--n_head", default=8, type=int, help="number of transformer head")
+    parser.add_argument("--d_ff", default=1024, type=int, help="feed forward network interlayer dimension")
+    parser.add_argument("--num_encoder_layers", default=6, type=int, help="number of transformer encoder layers")
+    parser.add_argument("--num_decoder_layers", default=6, type=int, help="number of transformer decoder layers")
+    parser.add_argument("--label_smoothing", default=0.1, type=float, help="label smoothing")    
+
     parser.add_argument("--clf_weight", default="weight.pt", type=str, help="model weight")
+    parser.add_argument("--clf_ratio", default=0.5, type=float, help="clf probability apply ratio")
+    parser.add_argument("--conf_thres", default=0.25, type=float, help="confidence threshold")
     parser.add_argument("--overlapThresh", default=0.9, type=float, help="overlap threshold for NMS")
 
     parser.add_argument("--img_size", default=224, type=int, help="img size")
@@ -108,35 +122,18 @@ def read_label(
         return df
 
 
-def softmax(
-    x: np.ndarray
-) -> np.ndarray:
-    exp = np.exp(x)
-    return exp / np.sum(exp, axis=1, keepdims=True)
-
-
-def correction_bbox_zero_class_id(
-    x: pd.Series
+def score_ensemble(
+    x: pd.Series,
+    clf_ratio: float=0.5,
+    eps: float=1e-7
 ) -> pd.Series:
-    class_id = x["class_id"]
-    if class_id == 0:
-        x["score"] = 0
-        x["x1"] = 0
-        x["y1"] = 0
-        x["x2"] = 0
-        x["y2"] = 0
-    return x
-
-
-def score_ensemble(x):
     class_num = 7
 
     class_id = x["class_id"]
     pos_score = x["score"]
-    neg_score = (1 - pos_score)/5
+    neg_score = (1 - pos_score)/6
 
     index = list(range(class_num))
-    index.remove(1)
     index.remove(class_id)
 
     obd_prob = np.zeros(class_num)
@@ -146,9 +143,9 @@ def score_ensemble(x):
 
     clf_prob = x[["0", "1", "2", "3", "4", "5", "6"]].values
     clf_prob = clf_prob.astype(float)
-
-    prob = np.sqrt(obd_prob*clf_prob)
-    prob = prob / (np.sum(prob)+1e-7)
+    
+    prob = (obd_prob*clf_prob) / (clf_ratio*obd_prob + (1-clf_ratio)*clf_prob + eps)
+    prob = prob / (np.sum(prob)+eps)
 
     x = x.copy()
     x["ensemble_class_id"] = np.argmax(prob)
@@ -206,20 +203,22 @@ def post_process(
     df: pd.DataFrame,
     img_ids: List[str],
     use_clf: bool,
-    overlapThresh: float=0.9
+    overlapThresh: float=0.9,
+    clf_ratio: float=0.5,
+    conf_thres: float=0.25
 ) -> pd.DataFrame:
     df = df.drop(columns=["crop"])
     if use_clf:
-        df = df.apply(lambda x: score_ensemble(x), axis=1)
+        df = df.apply(lambda x: score_ensemble(x, clf_ratio=clf_ratio), axis=1)
         df["class_id"] = df["ensemble_class_id"].values.astype(int)
         df["score"] = df["ensemble_score"]
         df = df.drop(
             columns=["clf_class_id", "clf_score", "0", "1", "2", "3", "4", "5", "6", "ensemble_class_id", "ensemble_score"]
         )
         df = NMS(df, overlapThresh=overlapThresh)
+        df = df.loc[df["score"]>conf_thres]
 
-    df = df.apply(lambda x: correction_bbox_zero_class_id(x), axis=1)
-    df = df.loc[df["class_id"] > 0]
+    df = df.loc[df["class_id"] > 1]
     df = add_zero_class_id(df, img_ids)
     df = df.fillna(0)
     return df
@@ -262,7 +261,19 @@ def main(args):
         )
 
         # model
-        model = Classifier(num_class=args.clf_num_class)
+        model = Classifier(
+            pretrained=False,
+            num_class=args.num_class,
+            num_queries=args.num_queries,
+            drop_path_rate=args.drop_path_rate,
+            dropout=args.dropout,
+            d_model=args.d_model,
+            n_head=args.n_head,
+            d_ff=args.d_ff,
+            num_encoder_layers=args.num_encoder_layers,
+            num_decoder_layers=args.num_decoder_layers,
+            label_smoothing=args.label_smoothing
+        )
         model.load_state_dict(
             torch.load(args.clf_weight)
         )
@@ -282,10 +293,6 @@ def main(args):
                 pred = model.predict(data)
 
             pred = pred.detach().cpu().numpy()
-            if args.clf_num_class == 6:
-                pred[:, [0, 1, 2, 3, 4, 5]] = pred[:, [5, 0, 1, 2, 3, 4]]
-                pred = np.insert(pred, 1, -np.inf, axis=1)
-
             proba = softmax(pred)
             label = np.argmax(proba, axis=1)
 
@@ -309,7 +316,14 @@ def main(args):
 
     # save submission file
     img_ids = [os.path.split(path)[1] for path in img_paths]
-    df_submission = post_process(df, img_ids, use_clf=args.use_clf, overlapThresh=args.overlapThresh)
+    df_submission = post_process(
+        df, 
+        img_ids, 
+        use_clf=args.use_clf,
+        conf_thres=args.conf_thres,
+        overlapThresh=args.overlapThresh,
+        clf_ratio=args.clf_ratio
+    )
 
     dst = os.path.join(args.inference_folder, args.output)
     df_submission.to_csv(dst, index=False, encoding="utf-8-sig")

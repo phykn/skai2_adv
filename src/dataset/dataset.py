@@ -1,7 +1,8 @@
 import random
 import numpy as np
 import albumentations as A
-from typing import List, Tuple, Optional
+import torchvision
+from typing import List, Tuple
 from .open_image import open_image
 from .misc import get_unique_indices
 
@@ -11,17 +12,27 @@ class CLF_Dataset:
         self,
         files: List[str],
         class_ids: List[int],
+        background_files: List[str],
+        add_data_folder: str,
+        background_ratio: float=0.0,
+        add_data_ratio: float=0.0,
         img_size: int=224,
         test: bool=False,
-        background_files: Optional[List[str]]=None
     ) -> None:
         self.files = files
         self.class_ids = class_ids
-        self.test = test
         self.background_files = background_files
+        self.background_ratio = background_ratio
+        self.add_data_ratio = add_data_ratio
+        self.add_data = torchvision.datasets.STL10(
+            root=add_data_folder,
+            split="unlabeled",
+            download=True
+        )
+        self.test = test
 
         unique, self.indices = get_unique_indices(class_ids)
-        self.num_class = len(unique)
+        self.unique_class_id = sorted(unique)
         self.setup_transform(img_size=img_size)
 
     def __len__(
@@ -39,8 +50,8 @@ class CLF_Dataset:
     def get_random_idx(
         self
     ) -> int:
-        class_id = np.random.choice(range(0, self.num_class))
-        return random.choice(self.indices[class_id])
+        index = np.random.choice(self.unique_class_id) - np.min(self.unique_class_id)
+        return random.choice(self.indices[index])
 
     def setup_transform(
         self,
@@ -51,10 +62,11 @@ class CLF_Dataset:
             width=img_size
         )
 
-        self.random_crop = A.RandomSizedCrop(
-            min_max_height=(img_size//2, img_size*4),
+        self.random_crop = A.RandomResizedCrop(
             height=img_size,
-            width=img_size
+            width=img_size,
+            scale=(0.01, 0.10),
+            ratio=(0.2, 5.0)
         )
 
         self.reshape = A.Compose([
@@ -78,7 +90,7 @@ class CLF_Dataset:
                     border_mode=0,
                     p=1.0
                 )
-            ], p=1.0)
+            ], p=0.5)
         ])
 
         self.recolor = A.Compose([
@@ -95,19 +107,7 @@ class CLF_Dataset:
 
         self.noise = A.Compose([
             A.Blur(
-                blur_limit=7, 
-                p=0.5
-            ),
-            A.GaussNoise(
-                p=0.5
-            ),
-            A.CoarseDropout(
-                max_height=56,
-                max_width=56,
-                max_holes=8,
-                min_height=28,
-                min_width=28,
-                min_holes=4,
+                blur_limit=7,
                 p=0.5
             )
         ])
@@ -136,17 +136,28 @@ class CLF_Dataset:
         idx: int
     ) -> Tuple[np.ndarray, int]:
         if not self.test:
-            idx = self.get_random_idx()
-            if (self.background_files is not None) and (np.random.rand() < 1/(self.num_class+1)):
+            rand = np.random.rand()
+            if  rand < self.background_ratio:
                 image = open_image(
                     np.random.choice(self.background_files)
                 )
                 image = self.random_crop(image=image)["image"]
-                return self.transform_image(image), self.num_class
+                class_id = 0
+            elif rand < self.background_ratio + self.add_data_ratio:
+                image, _ = random.choice(self.add_data)
+                image = self.resize(image=np.array(image))["image"]
+                class_id = 1
+            else:
+                idx = self.get_random_idx()
+                image = open_image(self.files[idx])
+                image = self.resize(image=image)["image"]
+                class_id = self.class_ids[idx]
+        else:
+            image = open_image(self.files[idx])
+            image = self.resize(image=image)["image"]
+            class_id = self.class_ids[idx]
 
-        image = open_image(self.files[idx])
-        image = self.resize(image=image)["image"]
-        return self.transform_image(image), self.class_ids[idx]
+        return self.transform_image(image), class_id
 
 
 class Test_Dataset:
@@ -158,7 +169,7 @@ class Test_Dataset:
         self.files = files
         self.transform = A.Compose([
             A.Resize(
-                height=img_size, 
+                height=img_size,
                 width=img_size
             ),
             A.Normalize(

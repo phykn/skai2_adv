@@ -31,36 +31,46 @@ class Classifier(nn.Module):
             drop_path_rate=drop_path_rate
         )
         self.norm = ListLayerNorm(num_kernels)
-        self.change = ChangeKernel(
-            in_channels=num_kernels[-1],
-            out_channels=d_model
-        )
 
-        self.pe_2d = PositionEmbedding2D(
-            num_pos_feats=d_model//2,
-            normalize=True
-        )
-        self.embed = nn.Embedding(
-            num_embeddings=num_queries, 
-            embedding_dim=d_model
-        )
-        nn.init.xavier_uniform_(self.embed.weight)
+        if (num_encoder_layers > 0) and (num_decoder_layers > 0):
+            self.change = ChangeKernel(
+                in_channels=num_kernels[-1],
+                out_channels=d_model
+            )
 
-        self.transformer = Transformer(
-            d_model=d_model,
-            n_head=n_head, 
-            num_encoder_layers=num_encoder_layers,
-            num_decoder_layers=num_decoder_layers,
-            d_ff=d_ff, 
-            dropout=dropout
-        )
+            self.pe_2d = PositionEmbedding2D(
+                num_pos_feats=d_model//2,
+                normalize=True
+            )
+            self.embed = nn.Embedding(
+                num_embeddings=num_queries, 
+                embedding_dim=d_model
+            )
+            nn.init.xavier_uniform_(self.embed.weight)
 
-        self.classifier = nn.Linear(
-            in_features=d_model,
-            out_features=num_class
-        )
-        nn.init.xavier_uniform_(self.classifier.weight)
-        nn.init.constant_(self.classifier.bias, 0)
+            self.transformer = Transformer(
+                d_model=d_model,
+                n_head=n_head, 
+                num_encoder_layers=num_encoder_layers,
+                num_decoder_layers=num_decoder_layers,
+                d_ff=d_ff, 
+                dropout=dropout
+            )
+
+            self.classifier = nn.Linear(
+                in_features=d_model,
+                out_features=num_class
+            )
+            nn.init.xavier_uniform_(self.classifier.weight)
+            nn.init.constant_(self.classifier.bias, 0)
+            
+            self.with_transformer = True
+        else:
+            self.classifier = nn.Linear(
+                in_features=num_kernels[-1],
+                out_features=num_class
+            )
+            self.with_transformer = False
 
         self.ce_loss = LabelSmoothingCrossEntropy(label_smoothing)
 
@@ -78,25 +88,29 @@ class Classifier(nn.Module):
         xs = self.convnext(x)
         xs = self.norm(xs)
         x = xs[-1]
+        
+        if self.with_transformer:
+            # x, p
+            x = self.change(x)
+            p = self.pe_2d(x)
 
-        # x, p
-        x = self.change(x)
-        p = self.pe_2d(x)
+            x = self.bcwh2nbc(x)
+            p = self.bcwh2nbc(p)
 
-        x = self.bcwh2nbc(x)
-        p = self.bcwh2nbc(p)
+            if self.train:
+                x = x + torch.randn_like(x)
 
-        if self.train:
-            x = x + torch.randn_like(x)
+            # y, q
+            _, batch_size, _ = x.shape
+            q = self.embed.weight.unsqueeze(1).repeat(1, batch_size, 1)
+            y = torch.zeros_like(q)
 
-        # y, q
-        _, batch_size, _ = x.shape
-        q = self.embed.weight.unsqueeze(1).repeat(1, batch_size, 1)
-        y = torch.zeros_like(q)
+            # transformer
+            o = self.transformer(x, p, y, q)
+            o = torch.mean(o, axis=1)
+        else:
+            o = x.mean([-2, -1])
 
-        # transformer
-        o = self.transformer(x, p, y, q)
-        o = torch.mean(o, axis=1)
         o = self.classifier(o)
         return o
 
