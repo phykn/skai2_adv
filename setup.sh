@@ -1,9 +1,7 @@
 # clear folder
 rm -rf /home/work/data
 rm -rf /home/work/data_prepared
-rm -rf /home/work/src/yolor-main
 rm -rf /home/work/src/yolov5-master
-rm -rf /home/work/src/yolov7-main
 rm -rf /home/work/pretrain
 
 # pip install
@@ -12,9 +10,7 @@ pip install -r requirements.txt
 # unzip
 python src/utils/unzip.py -file "/home/work/sample-notebooks/train.zip" -dst "/home/work/data"
 python src/utils/unzip.py -file "/home/work/sample-notebooks/predict.zip" -dst "/home/work/data"
-python src/utils/unzip.py -file "/home/work/sample-notebooks/yolor-main.zip" -dst "/home/work/src"
 python src/utils/unzip.py -file "/home/work/sample-notebooks/yolov5-master.zip" -dst "/home/work/src"
-python src/utils/unzip.py -file "/home/work/sample-notebooks/yolov7-main.zip" -dst "/home/work/src"
 
 # data preparation
 python src/data_prepare.py \

@@ -1,20 +1,21 @@
-rm -rf inference
+# rm -rf inference
 
-python src/yolov5-master/detect.py \
---weights "/home/work/runs/train/yolov5m6_all_epoch_300/weights/last.pt" \
---source "/home/work/data/predict" \
---project "inference" --name "" \
---conf-thres 0.25 --iou-thres 0.45 --half --device 0 \
---nosave --save-txt --save-conf --save-crop \
---img 2560 --augment
-
+# python src/yolov5-master/detect.py \
+# --weights \
+# "/home/work/runs/train/yolov5m_epoch_100/weights/last.pt" \
+# "/home/work/runs/train/yolov5s6_epoch_100/weights/last.pt" \
+# "/home/work/runs/train/yolov5m6_epoch_100/weights/last.pt" \
+# --source "/home/work/data/predict" \
+# --project "inference" --name "" \
+# --img 2560 --max-det 300 --conf-thres 0.4 --iou-thres 0.3 --augment \
+# --nosave --save-txt --save-conf --save-crop --half --device 0
 
 python src/submission.py \
 --img_folder "/home/work/data/predict" \
 --inference_folder "/home/work/inference" \
---output "submission.csv" \
---use_clf true --overlapThresh 0.9 --img_size 224 --batch_size 32 --num_workers 4 --cuda true \
---clf_weight "/home/work/runs_clf/classifier_all_transformer_zero_tgt_300_epoch/weight/last.pt"
+--output "adv_submission_아메리카노찍먹_.csv" \
+--clf_weight "/home/work/runs_clf/classifier_all_bg_0.2_add_0.2_epoch_200/weight/last.pt" \
+--use_clf true --clf_ratio 0.9 --conf_thres 0.0 --overlapThresh 1.0
 
 # rm -rf inference/crops
 # rm -rf inference/labels
