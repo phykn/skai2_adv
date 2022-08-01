@@ -8,46 +8,46 @@ python src/yolo_split_data.py \
 --dst_txt_folder "/home/work/src/config/split" \
 --n_splits 0 --seed 42
 
-# # yolov5
-# python src/yolov5-master/train.py \
-# --name yolov5m_epoch_100 \
-# --data "/home/work/src/config/split/dataset_00.yaml" \
-# --project "/home/work/runs/train" \
-# --cfg "/home/work/src/config/yolov5/yolov5m.yaml" \
-# --weights "/home/work/pretrain/yolov5m.pt" \
-# --hyp "/home/work/src/config/yolov5/hyp.yaml" \
-# --img 640 --multi-scale --cos-lr \
-# --batch-size 4 --epochs 100 --workers 4 --device 0
+# yolov5
+python src/yolov5-master/train.py \
+--name yolov5m_epoch_100 \
+--data "/home/work/src/config/split/dataset_00.yaml" \
+--project "/home/work/runs/train" \
+--cfg "/home/work/src/config/yolov5/yolov5m.yaml" \
+--weights "/home/work/pretrain/yolov5m.pt" \
+--hyp "/home/work/src/config/yolov5/hyp.yaml" \
+--img 640 --multi-scale --cos-lr \
+--batch-size 4 --epochs 100 --workers 4 --device 0
 
-# python src/yolov5-master/train.py \
-# --name yolov5l_epoch_100 \
-# --data "/home/work/src/config/split/dataset_00.yaml" \
-# --project "/home/work/runs/train" \
-# --cfg "/home/work/src/config/yolov5/yolov5l.yaml" \
-# --weights "/home/work/pretrain/yolov5l.pt" \
-# --hyp "/home/work/src/config/yolov5/hyp.yaml" \
-# --img 640 --multi-scale --cos-lr \
-# --batch-size 4 --epochs 100 --workers 4 --device 0
+python src/yolov5-master/train.py \
+--name yolov5l_epoch_100 \
+--data "/home/work/src/config/split/dataset_00.yaml" \
+--project "/home/work/runs/train" \
+--cfg "/home/work/src/config/yolov5/yolov5l.yaml" \
+--weights "/home/work/pretrain/yolov5l.pt" \
+--hyp "/home/work/src/config/yolov5/hyp.yaml" \
+--img 640 --multi-scale --cos-lr \
+--batch-size 4 --epochs 100 --workers 4 --device 0
 
-# python src/yolov5-master/train.py \
-# --name yolov5s6_epoch_100 \
-# --data "/home/work/src/config/split/dataset_00.yaml" \
-# --project "/home/work/runs/train" \
-# --cfg "/home/work/src/config/yolov5/yolov5s6.yaml" \
-# --weights "/home/work/pretrain/yolov5s6.pt" \
-# --hyp "/home/work/src/config/yolov5/hyp.yaml" \
-# --img 1280 --multi-scale --cos-lr \
-# --batch-size 4 --epochs 100 --workers 4 --device 0
+python src/yolov5-master/train.py \
+--name yolov5s6_epoch_100 \
+--data "/home/work/src/config/split/dataset_00.yaml" \
+--project "/home/work/runs/train" \
+--cfg "/home/work/src/config/yolov5/yolov5s6.yaml" \
+--weights "/home/work/pretrain/yolov5s6.pt" \
+--hyp "/home/work/src/config/yolov5/hyp.yaml" \
+--img 1280 --multi-scale --cos-lr \
+--batch-size 4 --epochs 100 --workers 4 --device 0
 
-# python src/yolov5-master/train.py \
-# --name yolov5m6_epoch_100 \
-# --data "/home/work/src/config/split/dataset_00.yaml" \
-# --project "/home/work/runs/train" \
-# --cfg "/home/work/src/config/yolov5/yolov5m6.yaml" \
-# --weights "/home/work/pretrain/yolov5m6.pt" \
-# --hyp "/home/work/src/config/yolov5/hyp.yaml" \
-# --img 1280 --multi-scale --cos-lr \
-# --batch-size 4 --epochs 100 --workers 4 --device 0
+python src/yolov5-master/train.py \
+--name yolov5m6_epoch_100 \
+--data "/home/work/src/config/split/dataset_00.yaml" \
+--project "/home/work/runs/train" \
+--cfg "/home/work/src/config/yolov5/yolov5m6.yaml" \
+--weights "/home/work/pretrain/yolov5m6.pt" \
+--hyp "/home/work/src/config/yolov5/hyp.yaml" \
+--img 1280 --multi-scale --cos-lr \
+--batch-size 4 --epochs 100 --workers 4 --device 0
 
 # classifier
 python src/train_classifier.py \
