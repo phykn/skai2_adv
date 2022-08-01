@@ -1,3 +1,5 @@
+# https://github.com/facebookresearch/detr
+
 import copy
 import math
 import torch
