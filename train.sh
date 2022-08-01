@@ -20,16 +20,6 @@ python src/yolov5-master/train.py \
 --batch-size 4 --epochs 100 --workers 4 --device 0
 
 python src/yolov5-master/train.py \
---name yolov5l_epoch_100 \
---data "/home/work/src/config/split/dataset_00.yaml" \
---project "/home/work/runs/train" \
---cfg "/home/work/src/config/yolov5/yolov5l.yaml" \
---weights "/home/work/pretrain/yolov5l.pt" \
---hyp "/home/work/src/config/yolov5/hyp.yaml" \
---img 640 --multi-scale --cos-lr \
---batch-size 4 --epochs 100 --workers 4 --device 0
-
-python src/yolov5-master/train.py \
 --name yolov5s6_epoch_100 \
 --data "/home/work/src/config/split/dataset_00.yaml" \
 --project "/home/work/runs/train" \
