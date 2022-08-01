@@ -1,4 +1,4 @@
-# 제2회 SK AI 경연
+# The second SK AI advanced competition
 
 ### Problem
 
