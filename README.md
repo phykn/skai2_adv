@@ -4,6 +4,7 @@
 
 The second SK AI advanced competition's goal is to find target objects (bolts and nuts) and identify its class. The target objects are in `normal`, `uncrewed_yellow`, `uncrewed_red`, `rusty_yellow`, and `rusty_red` as below[1].
 ![](./image/image_3.png)
+![](./image/image_2.png)
 
 ### Model
 
